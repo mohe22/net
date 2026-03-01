@@ -92,21 +92,32 @@ Defines the types and free functions used across the entire library:
 
 ---
 
+
 ### `address.hpp` / `address.cpp` — Network Address
 
 `Address` wraps a `sockaddr_storage`, which is large enough to hold either an IPv4 (`sockaddr_in`)
-or IPv6 (`sockaddr_in6`) address. It is constructed exclusively through static factory methods:
+or IPv6 (`sockaddr_in6`) address. It cannot be constructed directly with arguments — instead, four
+static factory methods are provided depending on where the address data is coming from.
 
-| Factory | Source |
-|---|---|
-| `Address::from(string, port)` | Human-readable IP string + port — tries IPv4 then IPv6 via `inet_pton` |
-| `Address::from(sockaddr_storage&)` | OS-provided storage — dispatches by `ss_family` |
-| `Address::from(sockaddr_in&)` | Pre-populated IPv4 struct |
-| `Address::from(sockaddr_in6&)` | Pre-populated IPv6 struct |
+`Address::from(const std::string&, uint16_t)` is used when you have a human-readable IP string and
+a port number. It tries to parse the string as IPv4 first via `inet_pton(AF_INET, ...)`, and if
+that fails it tries IPv6. The port is converted to network byte order internally via `htons()`. It
+returns a `Result<Address>` and will fail with `Error::InvalidPort` if the port is `0`, or
+`Error::InvalidIP` if the string is not a valid IPv4 or IPv6 address.
 
-Accessors (`getIp()`, `getPort()`, `getIpType()`) return `Result<T>` and will return an error
-if the address has not been initialized. Raw pointer accessors (`getAddrRaw()`, `getSizeRaw()`)
-are provided for passing directly into OS socket calls.
+`Address::from(const sockaddr_storage&)` is used after OS calls such as `accept()` or `recvfrom()`
+that write a peer address into a `sockaddr_storage`. It inspects `ss_family` and delegates to the
+correct overload below.
+
+`Address::from(const sockaddr_in&)` and `Address::from(const sockaddr_in6&)` construct directly
+from pre-populated IPv4 or IPv6 structs respectively, copying the family, port, and address fields
+as-is without any byte-order conversion, since the OS already provides them in network byte order.
+
+Accessors `getIp()`, `getPort()`, and `getIpType()` all return `Result<T>` and will return an error
+if the address has not been properly initialized. Raw pointer accessors `getAddrRaw()` and
+`getSizeRaw()` expose the underlying storage for passing directly into OS socket calls such as
+`bind()`, `connect()`, `recvfrom()`, and `accept()`.
+
 
 ---
 
