@@ -27,7 +27,7 @@ void testIpv6(){
                     receiver.getPort().value_or(0)
                 );
 
-                Net::Result<ssize> sentBytes = server.sendTo(message, strlen(message), receiver);
+                Net::Result<ssize> sentBytes = server.sendTo(message, 14, receiver);
                 if (!sentBytes) {
                     std::println("[ERROR] sendTo failed: {}", Net::toErrorString(sentBytes.error()));
                     continue;
@@ -70,7 +70,7 @@ void testIpv4(){
                     receiver.getPort().value_or(0)
                 );
 
-                Net::Result<ssize> sentBytes = server.sendTo(message, strlen(message), receiver);
+                Net::Result<ssize> sentBytes = server.sendTo(message, 14, receiver);
                 if (!sentBytes) {
                     std::println("[ERROR] sendTo failed: {}", Net::toErrorString(sentBytes.error()));
                     continue;
@@ -90,7 +90,7 @@ void testIpv4(){
 
 int main(){
 
-    testIpv4();
+    testIpv6();
     return 0;
 
 };

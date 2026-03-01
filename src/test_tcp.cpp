@@ -4,9 +4,9 @@
 int main() {
 
     Net::Servers::Tcp server;
-    auto result = server.init(Net::IPType::IPv6)
+    auto result = server.init(Net::IPType::IPv4)
         .and_then([&]() -> Net::Result<void> {
-            return server.bind("::", 8080);
+            return server.bind("127.0.0.1", 8080);
         })
         .and_then([&]() -> Net::Result<void> {
             return server.listen();

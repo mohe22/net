@@ -1,7 +1,6 @@
 #include "../include/server.hpp"
 
-#include <print>
-#include <tuple>
+
 namespace Net::Servers {
     Result<void> SocketBase::init(IPType ipType) noexcept {
 
@@ -101,8 +100,8 @@ namespace Net::Servers {
                 data,
                 size,
                 0,
-                destination.raw(),
-                destination.size()
+                destination.getAddrRaw(),
+                destination.getSize()
             );
         #endif
         if(sentBytes == 0 ) return std::unexpected{Net::Error::ConnectionClosed};
@@ -136,8 +135,8 @@ namespace Net::Servers {
                 buffer,
                 length,
                 0,
-                receiver.raw(),
-                receiver.size()
+                receiver.getAddrRaw(),
+                receiver.getSizeRaw()
             );
         #endif
         if(recvBytes == 0 ) return std::unexpected{Net::Error::ConnectionClosed};
