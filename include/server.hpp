@@ -1,13 +1,16 @@
 #pragma once
+#include "platform.hpp"
 #include "types.hpp"
 #include "client.hpp"
-#include <cstdint>
-#include <memory>
-#include <winnt.h>
+#include "socketOptions.hpp"
+
+
+#include <memory> // for std::unique_ptr
+#include <chrono> // for std::chrono::milliseconds
+
 
 namespace Net {
     namespace Servers {
-
         /**
          * @brief Abstract base class providing shared socket lifecycle management.
          *
@@ -21,170 +24,200 @@ namespace Net {
          *
          * @note This class is not intended to be used directly — use @c Tcp or @c Udp.
          */
-        class SocketBase {
-        public:
+        class SocketBase: public Net::SocketOptions {
+            public:
 
-            /**
-             * @brief Initializes the socket for the given IP version.
-             *
-             * On Windows, initializes Winsock 2.2 via @c WSAStartup() before any
-             * socket call. Then resolves the address family from @p ipType, calls
-             * @c ::socket() with the result and the subclass-provided @c socketType(),
-             * and stores the handle in @c socket_.
-             *
-             * On Windows, calling @c init() a second time without an intervening
-             * cleanup returns @c Error::AlreadyConnected immediately.
-             *
-             * @param ipType  The IP version to create the socket for
-             *                (@c IPType::V4 or @c IPType::V6).
-             *
-             * @return @c Result<void> with no value on success.
-             * @return @c std::unexpected{Error::AlreadyConnected} on Windows if
-             *         @c WSAStartup() has already been called on this instance.
-             * @return @c std::unexpected{Error::WSAStartupFailed} on Windows if
-             *         @c WSAStartup() fails.
-             * @return @c std::unexpected{Error::InvalidAddressFamily} if @p ipType
-             *         cannot be mapped to an address family.
-             * @return @c std::unexpected with the platform error (from @c getError())
-             *         if @c ::socket() fails.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            Result<void> init(IPType ipType) noexcept;
+                /**
+                 * @brief Initializes the socket for the given IP version.
+                 *
+                 * On Windows, initializes Winsock 2.2 via @c WSAStartup() before any
+                 * socket call. Then resolves the address family from @p ipType, calls
+                 * @c ::socket() with the result and the subclass-provided @c socketType(),
+                 * and stores the handle in @c socket_.
+                 *
+                 * On Windows, calling @c init() a second time without an intervening
+                 * cleanup returns @c Error::AlreadyConnected immediately.
+                 *
+                 * @param ipType  The IP version to create the socket for
+                 *                (@c IPType::V4 or @c IPType::V6).
+                 *
+                 * @return @c Result<void> with no value on success.
+                 * @return @c std::unexpected{Error::AlreadyConnected} on Windows if
+                 *         @c WSAStartup() has already been called on this instance.
+                 * @return @c std::unexpected{Error::WSAStartupFailed} on Windows if
+                 *         @c WSAStartup() fails.
+                 * @return @c std::unexpected{Error::InvalidAddressFamily} if @p ipType
+                 *         cannot be mapped to an address family.
+                 * @return @c std::unexpected with the platform error (from @c getError())
+                 *         if @c ::socket() fails.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                Result<void> init(IPType ipType) noexcept;
 
-            /**
-             * @brief Binds the socket to a local IP address and port.
-             *
-             * Constructs an @c Address from @p ip and @p port via
-             * @c Address::from(), then calls @c ::bind(). On success, stores the
-             * address in @c address_ for later retrieval via @c getAddress().
-             *
-             * @param ip    A human-readable IPv4 or IPv6 address string to bind to
-             *              (e.g. @c "0.0.0.0" or @c "::").
-             * @param port  The local port to bind to, in host byte order. Must be
-             *              non-zero.
-             *
-             * @return @c Result<void> with no value on success.
-             * @return @c std::unexpected{Error::SocketNotInitialized} if @c init()
-             *         has not been called yet.
-             * @return @c std::unexpected{Error::InvalidIP} or
-             *         @c std::unexpected{Error::InvalidPort} if @p ip or @p port
-             *         are invalid (propagated from @c Address::from()).
-             * @return @c std::unexpected with the platform error (from @c getError())
-             *         if @c ::bind() fails (e.g. @c Error::AddressAlreadyInUse).
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            Result<void> bind(const std::string& ip, uint16_t port) noexcept;
+                /**
+                 * @brief Binds the socket to a local IP address and port.
+                 *
+                 * Constructs an @c Address from @p ip and @p port via
+                 * @c Address::from(), then calls @c ::bind(). On success, stores the
+                 * address in @c address_ for later retrieval via @c getAddress().
+                 *
+                 * @param ip    A human-readable IPv4 or IPv6 address string to bind to
+                 *              (e.g. @c "0.0.0.0" or @c "::").
+                 * @param port  The local port to bind to, in host byte order. Must be
+                 *              non-zero.
+                 *
+                 * @return @c Result<void> with no value on success.
+                 * @return @c std::unexpected{Error::SocketNotInitialized} if @c init()
+                 *         has not been called yet.
+                 * @return @c std::unexpected{Error::InvalidIP} or
+                 *         @c std::unexpected{Error::InvalidPort} if @p ip or @p port
+                 *         are invalid (propagated from @c Address::from()).
+                 * @return @c std::unexpected with the platform error (from @c getError())
+                 *         if @c ::bind() fails (e.g. @c Error::AddressAlreadyInUse).
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                Result<void> bind(const std::string& ip, uint16_t port) noexcept;
 
-            /**
-             * @brief Destructor — closes the socket and cleans up platform resources.
-             *
-             * Calls @c closeSocket(). On Windows, also calls @c ::WSACleanup() if
-             * @c wsaInitialized_ is @c true.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            ~SocketBase() noexcept {
-                closeSocket();
-                #ifdef _WIN32
-                    if (wsaInitialized_)
-                        ::WSACleanup();
-                #endif
-            }
-
-            /**
-             * @brief Returns the underlying socket handle.
-             *
-             * @return The raw @c SocketHandle. May be @c invaliedSocket if @c init()
-             *         has not been called or @c closeSocket() has been called.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            const SocketHandle getSocket() const noexcept { return socket_; }
-
-            /**
-             * @brief Returns the local address this socket is bound to.
-             *
-             * The address is only meaningful after a successful call to @c bind().
-             * Before that it is default-initialized.
-             *
-             * @return A @c const reference to the internal @c Address. Valid for
-             *         the lifetime of this object.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            const Address& getAddress() const noexcept { return address_; }
-
-            /**
-             * @brief Returns the IP version of the bound address.
-             *
-             * Delegates to @c address_.getIpType(). Only meaningful after a
-             * successful call to @c bind().
-             *
-             * @return A @c Result<IPType> with @c IPType::V4 or @c IPType::V6 on
-             *         success, or an error if the address family is unrecognized.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            const Result<IPType> getIpType() const noexcept { return address_.getIpType(); }
-
-            /**
-             * @brief Returns whether the socket handle is currently valid.
-             *
-             * @return @c true if @c socket_ is not @c invaliedSocket, @c false
-             *         otherwise.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            bool isValidSocket() const noexcept {
-                return socket_ != invaliedSocket;
-            }
-
-            /**
-             * @brief Closes the socket and resets the handle to @c invaliedSocket.
-             *
-             * Calls @c platformClose() only if @c isValidSocket() is @c true, then
-             * unconditionally sets @c socket_ to @c invaliedSocket so that
-             * subsequent calls are safe no-ops.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            void closeSocket() noexcept {
-                if (isValidSocket()) {
-                    platformClose(socket_);
+                /**
+                 * @brief Destructor — closes the socket and cleans up platform resources.
+                 *
+                 * Calls @c closeSocket(). On Windows, also calls @c ::WSACleanup() if
+                 * @c wsaInitialized_ is @c true.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                ~SocketBase() noexcept {
+                    closeSocket();
+                    #ifdef _WIN32
+                        if (wsaInitialized_)
+                            ::WSACleanup();
+                    #endif
                 }
-                socket_ = invaliedSocket;
-            }
 
-        protected:
 
-            /**
-             * @brief Returns the socket type constant for this protocol.
-             *
-             * Implemented by subclasses to return the @c SOCK_* constant passed to
-             * @c ::socket() during @c init():
-             * - @c Tcp returns @c SOCK_STREAM
-             * - @c Udp returns @c SOCK_DGRAM
-             *
-             * @return A @c SOCK_* constant (e.g. @c SOCK_STREAM or @c SOCK_DGRAM).
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            virtual int socketType() const noexcept = 0;
 
-        private:
-            /// The underlying platform socket handle. @c invaliedSocket when not initialized or closed.
-            SocketHandle socket_{ invaliedSocket };
+                /**
+                 * @brief Returns the underlying socket handle.
+                 *
+                 * @return The raw @c SocketHandle. May be @c invaliedSocket if @c init()
+                 *         has not been called or @c closeSocket() has been called.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                SocketHandle getSocket() const noexcept { return socket_; }
 
-            /// The local address this socket is bound to. Populated by @c bind().
-            Address address_{};
+                /**
+                 * @brief Returns the local address this socket is bound to.
+                 *
+                 * The address is only meaningful after a successful call to @c bind().
+                 * Before that it is default-initialized.
+                 *
+                 * @return A @c const reference to the internal @c Address. Valid for
+                 *         the lifetime of this object.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                const Address& getAddress() const noexcept { return address_; }
 
-            #ifdef _WIN32
-                /// Windows only — tracks whether @c WSAStartup() has been called on this instance.
-                bool wsaInitialized_{ false };
-            #endif
-        };
+                /**
+                 * @brief Returns the IP version of the bound address.
+                 *
+                 * Delegates to @c address_.getIpType(). Only meaningful after a
+                 * successful call to @c bind().
+                 *
+                 * @return A @c Result<IPType> with @c IPType::V4 or @c IPType::V6 on
+                 *         success, or an error if the address family is unrecognized.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                const Result<IPType> getIpType() const noexcept { return address_.getIpType(); }
+
+                /**
+                 * @brief Returns whether the socket handle is currently valid.
+                 *
+                 * @return @c true if @c socket_ is not @c invaliedSocket, @c false
+                 *         otherwise.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                bool isValidSocket() const noexcept {
+                    return socket_ != invalidSocket;
+                }
+
+                /**
+                 * @brief Closes the socket and resets the handle to @c invaliedSocket.
+                 *
+                 * Calls @c platformClose() only if @c isValidSocket() is @c true, then
+                 * unconditionally sets @c socket_ to @c invaliedSocket so that
+                 * subsequent calls are safe no-ops.
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                void closeSocket() noexcept {
+                    if (isValidSocket()) {
+                        platformClose(socket_);
+                    }
+                    socket_ = invalidSocket;
+                }
+
+
+
+
+
+            protected:
+
+                /**
+                 * @brief Returns the socket type constant for this protocol.
+                 *
+                 * Implemented by subclasses to return the @c SOCK_* constant passed to
+                 * @c ::socket() during @c init():
+                 * - @c Tcp returns @c SOCK_STREAM
+                 * - @c Udp returns @c SOCK_DGRAM
+                 *
+                 * @return A @c SOCK_* constant (e.g. @c SOCK_STREAM or @c SOCK_DGRAM).
+                 *
+                 * @throws Nothing — marked @c noexcept.
+                 */
+                virtual int socketType() const noexcept = 0;
+
+
+            private:
+                /**
+                * @brief Sets a socket option on the underlying socket.
+                * @param option  The socket option to set, see @c SocketOption enum.
+                * @param optval  Pointer to the value to set. Can be any type (int, DWORD, struct timeval, etc).
+                * @param optlen  Size of the value in bytes. Defaults to @c sizeof(int).
+                * @return        A @c Result indicating success or failure.
+                * @note          On Windows, @c optval is cast to @c const char* as required by WinSock.
+                *                On Linux,   @c optval is cast to @c const int*  as required by POSIX.
+                */
+                Result<void> setOption(SocketOption option,const void* optval, int optlen = sizeof(int)) const noexcept;
+
+                /**
+                * @brief Sets a timeout option on the underlying socket.
+                * @param option  The timeout option to set, either @c SocketOption::ReceiveTimeout
+                *                or @c SocketOption::SendTimeout.
+                * @param timeout The timeout duration in milliseconds. Pass @c 0ms to disable.
+                * @return        A @c Result indicating success or failure.
+                * @note          On Windows, the timeout is passed as a @c DWORD of milliseconds.
+                *                On Linux,   the timeout is passed as a @c struct @c timeval { seconds, microseconds }.
+                */
+                Result<void> setTimeoutOption(SocketOption option,std::chrono::milliseconds timeout) const noexcept;
+
+                /// The underlying platform socket handle. @c invaliedSocket when not initialized or closed.
+                SocketHandle socket_{ invalidSocket };
+
+                /// The local address this socket is bound to. Populated by @c bind().
+                Address address_{};
+
+                #ifdef _WIN32
+                    /// Windows only — tracks whether @c WSAStartup() has been called on this instance.
+                    bool wsaInitialized_{ false };
+                #endif
+            };
+
 
         /**
          * @brief UDP socket server (@c SOCK_DGRAM).

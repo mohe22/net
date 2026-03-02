@@ -1,7 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include "address.hpp"
-
+#include "socketOptions.hpp"
 namespace Net {
 
 /**
@@ -17,7 +17,7 @@ namespace Net {
  * @note All operations are blocking. @c send() and @c receive() will block
  *       until data is written/read or an error occurs.
  */
-class Client {
+class Client: public SocketOptions {
 public:
 
     /**
@@ -28,6 +28,18 @@ public:
      * on this object results in an error until a valid socket is assigned.
      */
     Client() = default;
+
+    /**
+     * @brief Destructor — closes the socket if still open.
+     *
+     * If @c socket_ is not @c invaliedSocket, calls @c platformClose() on it.
+     * Always logs a debug message to stdout with the remote IP and port,
+     * regardless of whether the socket was already closed.
+     *
+     * @throws Nothing — marked @c noexcept.
+     */
+    ~Client() noexcept;
+
 
     /**
      * @brief Constructs a Client from an accepted socket and its remote address.
@@ -55,16 +67,7 @@ public:
     /// @brief Deleted — socket ownership cannot be transferred.
     Client& operator=(Client&&) = delete;
 
-    /**
-     * @brief Destructor — closes the socket if still open.
-     *
-     * If @c socket_ is not @c invaliedSocket, calls @c platformClose() on it.
-     * Always logs a debug message to stdout with the remote IP and port,
-     * regardless of whether the socket was already closed.
-     *
-     * @throws Nothing — marked @c noexcept.
-     */
-    ~Client() noexcept;
+
 
     /**
      * @brief Sends raw data to the remote peer.
@@ -124,12 +127,14 @@ public:
      */
     Result<void> close();
 
-private:
-    /// The underlying platform socket handle. @c invaliedSocket when not connected.
-    SocketHandle socket_{ invaliedSocket };
-
     /// The remote address this client is connected to.
     Address address_{};
+
+private:
+    SocketHandle getSocket() const noexcept override { return socket_; }
+    /// The underlying platform socket handle. @c invaliedSocket when not connected.
+    SocketHandle socket_{ invalidSocket };
+
 };
 
 } // namespace Net

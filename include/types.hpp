@@ -2,6 +2,7 @@
 #include <expected>
 #include "error.hpp"
 
+
 namespace Net {
 
     class Address;
@@ -54,6 +55,75 @@ namespace Net {
         IPv4, ///< Internet Protocol version 4 — 32-bit address (@c AF_INET).
         IPv6  ///< Internet Protocol version 6 — 128-bit address (@c AF_INET6).
     };
+
+    /*
+     * @brief Socket options for configuring socket behavior.
+     */
+    enum class SocketOption {
+
+        /// Allows the socket to bind to an address already in use.
+        /// @note Supported on both Windows and Linux.
+        ReuseAddress   = SO_REUSEADDR,
+
+        /// Allows multiple sockets to bind to the same port.
+        /// @warning Linux only. On Windows this is silently ignored.
+    #ifdef _WIN32
+        ReusePort      = SO_REUSEADDR,  // Windows has no SO_REUSEPORT, fallback to SO_REUSEADDR
+    #else
+        ReusePort      = SO_REUSEPORT,
+    #endif
+
+        /// Enables keep-alive packets to detect dead connections.
+        /// @note TCP only. Not valid on UDP sockets.
+        /// @note Supported on both Windows and Linux.
+        KeepAlive      = SO_KEEPALIVE,
+
+        /// Allows sending broadcast messages.
+        /// @note UDP only. Required before sending to a broadcast address.
+        /// @note Supported on both Windows and Linux.
+        Broadcast      = SO_BROADCAST,
+
+        /// Controls behavior when closing a socket with unsent data.
+        /// @note TCP only. Uses @c struct linger { onoff, linger_time }.
+        /// @note Supported on both Windows and Linux.
+        Linger         = SO_LINGER,
+
+        /// Sets the size of the receive buffer in bytes.
+        /// @note Supported on both Windows and Linux.
+        ReceiveBuffer  = SO_RCVBUF,
+
+        /// Sets the size of the send buffer in bytes.
+        /// @note Supported on both Windows and Linux.
+        SendBuffer     = SO_SNDBUF,
+
+        /// Sets the timeout for receive operations.
+        /// @note Windows → @c DWORD milliseconds.
+        /// @note Linux   → @c struct timeval { seconds, microseconds }.
+        ReceiveTimeout = SO_RCVTIMEO,
+
+        /// Sets the timeout for send operations.
+        /// @note Windows → @c DWORD milliseconds.
+        /// @note Linux   → @c struct timeval { seconds, microseconds }.
+        SendTimeout    = SO_SNDTIMEO,
+
+
+        /// Disables Nagle's algorithm, sending packets immediately without buffering.
+        /// @note TCP only. Not valid on UDP sockets.
+        /// @note Supported on both Windows and Linux.
+        NoDelay        = TCP_NODELAY,
+    };
+    /**
+     * @brief Returns the correct protocol level for a given socket option.
+     * @param option The socket option to query.
+     * @return @c IPPROTO_TCP for TCP-level options, @c SOL_SOCKET for all others.
+     */
+    inline int getOptionLevel(SocketOption option)  noexcept {
+        switch (option) {
+            case SocketOption::NoDelay:  return IPPROTO_TCP;  // TCP level
+            default:                     return SOL_SOCKET;   // socket level
+        }
+    }
+
 
     /**
      * @brief Maps a @c Protocol value to its corresponding @c SOCK_* constant.

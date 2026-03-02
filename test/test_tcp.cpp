@@ -1,6 +1,7 @@
 #include "../include/server.hpp"
 #include "../include/client.hpp"
 #include "../include/types.hpp"
+#include <print>
 int main() {
 
     Net::Servers::Tcp server;
@@ -10,6 +11,20 @@ int main() {
         })
         .and_then([&]() -> Net::Result<void> {
             return server.listen();
+        })
+        .and_then([&]()->Net::Result<void>{
+            std::chrono::milliseconds timeout{6000};
+            if (auto r = server.setSendTimeout(timeout); !r)
+                std::println("failed timeout: {}", Net::toErrorString(r.error()));
+            if (auto r = server.setReceiveTimeout(timeout); !r)
+                std::println("failed receive timeout: {}", Net::toErrorString(r.error()));
+            if (auto r = server.setReusePort(); !r)
+                std::println("failed reuse port: {}", Net::toErrorString(r.error()));
+            if(auto r = server.setReuseAddress(); !r)
+                std::println("failed reuse address: {}", Net::toErrorString(r.error()));
+            if(auto r = server.setKeepAlive(); !r)
+                std::println("failed keep alive: {}", Net::toErrorString(r.error()));
+            return {};
         })
         .and_then([&]() -> Net::Result<void> {
             uint8_t buffer[1204];

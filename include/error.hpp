@@ -1,7 +1,7 @@
 #pragma once
 #include "platform.hpp"
-#include <print>
 #include <string_view>
+#include <cstdint>
 
 namespace Net {
 
@@ -16,7 +16,7 @@ namespace Net {
  *       inside @c std::unexpected — it exists for completeness and for use
  *       with @c toErrorString().
  */
-enum class Error : uint8_t {
+enum class Error : uint8_t  {
 
     // -------------------------------------------------------------------------
     // General
@@ -130,7 +130,6 @@ enum class Error : uint8_t {
  */
 inline Error getError() noexcept {
     const int code = getLastError();
-    std::println("[Debug] error code is {}", code);
 
 #ifdef _WIN32
     switch (code) {

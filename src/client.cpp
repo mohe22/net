@@ -7,11 +7,9 @@ namespace Net {
         if (socket_ != invalidSocket) {
             platformClose(socket_);
         }
-        std::println("[DEBUG] {}:{} Disconnected",address_.getIp().value_or("Unkown"),address_.getPort().value_or(0));
     }
     Client::Client(SocketHandle socket, const Address& address) noexcept
         : socket_{socket}, address_{std::move(address)} {
-            std::println("[DEBUG] client {}:{} established",address_.getIp().value_or("Unkown"),address_.getPort().value_or(0));
     }
 
     Result<ssize> Client::send(const void* data, size_t size) {

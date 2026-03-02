@@ -1,6 +1,7 @@
 #include "../include/server.hpp"
 
 
+
 namespace Net::Servers {
     Result<void> SocketBase::init(IPType ipType) noexcept {
 
@@ -24,21 +25,17 @@ namespace Net::Servers {
 
                        return {};
             });
-
-
     };
     Result<void> SocketBase::bind(const std::string& ip, uint16_t port) noexcept{
         if (socket_ == invalidSocket)
                return std::unexpected{Error::SocketNotInitialized};
         return Net::Address::from(ip,port).and_then([&](const Address& address)->Result<void> {
             if(::bind(socket_,  address.getAddrRaw(),address.getSize())== -1){
-                std::println("[DEBUG], {}",getLastError());
                 return std::unexpected{Net::getError()};
             }
             address_ = address;
             return {};
         });
-
 
     };
 
@@ -69,7 +66,7 @@ namespace Net::Servers {
                 return std::unexpected{getError()};
         #endif
 
-        return std::make_unique<Client>(clientSocket, Net::Address::from(clientAddress));
+        return std::make_unique<Net::Client>(clientSocket, Net::Address::from(clientAddress));
     }
 
 
@@ -95,7 +92,7 @@ namespace Net::Servers {
                     destination.getSize()
             );
         #else
-            ssize_t sentBytes = ::sendto(
+            ssize sentBytes = ::sendto(
                 getSocket(),
                 data,
                 size,
@@ -130,7 +127,7 @@ namespace Net::Servers {
                 receiver.getSizeRaw()
             );
         #else
-            ssize_t recvBytes = ::recvfrom(
+            ssize recvBytes = ::recvfrom(
                 getSocket(),
                 buffer,
                 length,

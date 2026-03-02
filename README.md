@@ -11,32 +11,34 @@ and supports both TCP and UDP over IPv4 and IPv6.
 ```
 net/
 ├── include/
-│   ├── platform.hpp   # Platform abstraction (Winsock2 vs POSIX)
-│   ├── error.hpp      # Error enum + getError() + toErrorString()
-│   ├── types.hpp      # Result<T>, IPType, Protocol, helper converters
-│   ├── address.hpp    # Address class (IPv4/IPv6 wrapper over sockaddr_storage)
-│   ├── client.hpp     # Client class (owns a connected TCP socket)
-│   ├── server.hpp     # SocketBase, Tcp, Udp server classes
-│   └── net.hpp        # (Top-level convenience include)
+│   ├── platform.hpp       # Platform abstraction (Winsock2 vs POSIX)
+│   ├── error.hpp          # Error enum + getError() + toErrorString()
+│   ├── types.hpp          # Result<T>, IPType, Protocol, helper converters
+│   ├── address.hpp        # Address class (IPv4/IPv6 wrapper over sockaddr_storage)
+│   ├── client.hpp         # Client class (owns a connected TCP socket)
+│   ├── socketOptions.hpp  # SocketOptions mixin (timeouts, buffers, keep-alive, etc.)
+│   ├── server.hpp         # SocketBase, Tcp, Udp server classes
+│   └── net.hpp            # Top-level convenience include
 └── src/
-    ├── address.cpp    # Address factory implementations
-    ├── client.cpp     # Client send/receive/close
-    ├── server.cpp     # SocketBase init/bind, Tcp listen/accept, Udp sendTo/receiveFrom
-    ├── test-udp.cpp   # UDP usage example / test
-    └── test_tcp.cpp   # TCP usage example / test
+    ├── address.cpp        # Address factory implementations
+    ├── client.cpp         # Client send/receive/close
+    ├── socketOptions.cpp  # setOption / setTimeoutOption implementations
+    ├── server.cpp         # SocketBase init/bind, Tcp listen/accept, Udp sendTo/receiveFrom
+    ├── test-udp.cpp       # UDP usage example
+    └── test_tcp.cpp       # TCP usage example
 ```
 
 ---
 
 ## Architecture
 
-The library is structured in layers, each building on the one below it.
-
 ```
 ┌─────────────────────────────────────┐
 │         Tcp / Udp (server.hpp)      │  ← Protocol-specific server logic
 ├─────────────────────────────────────┤
 │         SocketBase (server.hpp)     │  ← Shared socket lifecycle (init, bind, close)
+├─────────────────────────────────────┤
+│      SocketOptions (mixin)          │  ← Socket options (timeouts, buffers, flags)
 ├─────────────────────────────────────┤
 │         Client (client.hpp)         │  ← Owns an accepted/connected socket
 ├─────────────────────────────────────┤
@@ -48,139 +50,160 @@ The library is structured in layers, each building on the one below it.
 └─────────────────────────────────────┘
 ```
 
-### `platform.hpp` — Platform Abstraction
+---
 
-The foundation of the library. Conditionally includes either `<winsock2.h>` (Windows)
-or the standard POSIX socket headers, and normalizes the differences behind a common interface:
+## Headers
 
-| Abstraction        | Windows              | POSIX          |
-|--------------------|----------------------|----------------|
-| `SocketHandle`     | `SOCKET`             | `int`          |
-| `invalidSocket`    | `INVALID_SOCKET`     | `-1`           |
-| `ssize`            | `int`                | `ssize_t`      |
-| `getLastError()`   | `WSAGetLastError()`  | `errno`        |
-| `platformClose(s)` | `::closesocket(s)`   | `::close(s)`   |
+### `platform.hpp`
 
-No other file in the library contains `#ifdef _WIN32` for these concerns — they all go through `platform.hpp`.
+The foundation of the library. Conditionally includes either `<winsock2.h>` (Windows) or the
+standard POSIX socket headers and normalizes everything behind a common interface.
+
+| Abstraction        | Windows             | POSIX         |
+|--------------------|---------------------|---------------|
+| `SocketHandle`     | `SOCKET`            | `int`         |
+| `invalidSocket`    | `INVALID_SOCKET`    | `-1`          |
+| `ssize`            | `int`               | `ssize_t`     |
+| `getLastError()`   | `WSAGetLastError()` | `errno`       |
+| `platformClose(s)` | `::closesocket(s)`  | `::close(s)`  |
+
+No other file contains `#ifdef _WIN32` for these concerns — they all go through `platform.hpp`.
 
 ---
 
-### `error.hpp` — Error Handling
+### `error.hpp`
 
-Defines the `Net::Error` enum (`uint8_t`) covering every failure category the library can produce,
-grouped by operation: initialization, address/IP, bind, listen, accept, connect, send, receive, close, and socket state.
-
-Two inline utilities accompany it:
+Defines `Net::Error` (`uint8_t`) covering every failure the library can produce, grouped by
+operation: initialization, address/IP, bind, listen, accept, connect, send, receive, close,
+and socket state.
 
 - **`getError()`** — reads `getLastError()` and maps the raw platform code to a `Net::Error`.
 - **`toErrorString(Error)`** — maps any `Net::Error` to a human-readable `std::string_view`.
 
 ---
 
-### `types.hpp` — Core Types and Converters
+### `types.hpp`
 
-Defines the types and free functions used across the entire library:
+Defines the types and free functions used across the entire library.
 
-- **`Result<T>`** — alias for `std::expected<T, Net::Error>`. Every function that can fail returns this instead of throwing.
+- **`Result<T>`** — alias for `std::expected<T, Net::Error>`. Every fallible function returns this.
 - **`RecvFromResult`** — `std::tuple<ssize, Address>` returned by `Udp::receiveFrom()`.
-- **`Protocol`** — `TCP`, `UDP`, `RAW` enum.
-- **`IPType`** — `IPv4`, `IPv6` enum.
-- **`toAddressFamily(IPType)`** — maps `IPType` → `AF_INET` / `AF_INET6`.
-- **`toSocketType(Protocol)`** — maps `Protocol` → `SOCK_STREAM` / `SOCK_DGRAM` / `SOCK_RAW`.
-- **`fromAddressFamily(int)`** — reverse maps `AF_*` → `IPType`.
-- **`getAddressSizeByIpType(IPType)`** — returns `sizeof(sockaddr_in)` or `sizeof(sockaddr_in6)`.
+- **`Protocol`** — `TCP`, `UDP`, `RAW`.
+- **`IPType`** — `IPv4`, `IPv6`.
+- **`toAddressFamily(IPType)`** — `IPType` → `AF_INET` / `AF_INET6`.
+- **`toSocketType(Protocol)`** — `Protocol` → `SOCK_STREAM` / `SOCK_DGRAM` / `SOCK_RAW`.
+- **`fromAddressFamily(int)`** — `AF_*` → `IPType`.
+- **`getAddressSizeByIpType(IPType)`** — `sizeof(sockaddr_in)` or `sizeof(sockaddr_in6)`.
 
 ---
 
+### `address.hpp` / `address.cpp`
 
-### `address.hpp` / `address.cpp` — Network Address
+`Address` wraps a `sockaddr_storage` large enough to hold either an IPv4 or IPv6 address.
+Constructed only through static factory methods:
 
-`Address` wraps a `sockaddr_storage`, which is large enough to hold either an IPv4 (`sockaddr_in`)
-or IPv6 (`sockaddr_in6`) address. It cannot be constructed directly with arguments — instead, four
-static factory methods are provided depending on where the address data is coming from.
+- **`Address::from(string, port)`** — parses a human-readable IP string (IPv4 first, then IPv6) and a port. Fails with `Error::InvalidIP` or `Error::InvalidPort`.
+- **`Address::from(sockaddr_storage)`** — used after `accept()` / `recvfrom()` to wrap the peer address the OS wrote back.
+- **`Address::from(sockaddr_in)`** / **`Address::from(sockaddr_in6)`** — construct directly from a pre-populated struct, no byte-order conversion needed.
 
-`Address::from(const std::string&, uint16_t)` is used when you have a human-readable IP string and
-a port number. It tries to parse the string as IPv4 first via `inet_pton(AF_INET, ...)`, and if
-that fails it tries IPv6. The port is converted to network byte order internally via `htons()`. It
-returns a `Result<Address>` and will fail with `Error::InvalidPort` if the port is `0`, or
-`Error::InvalidIP` if the string is not a valid IPv4 or IPv6 address.
-
-`Address::from(const sockaddr_storage&)` is used after OS calls such as `accept()` or `recvfrom()`
-that write a peer address into a `sockaddr_storage`. It inspects `ss_family` and delegates to the
-correct overload below.
-
-`Address::from(const sockaddr_in&)` and `Address::from(const sockaddr_in6&)` construct directly
-from pre-populated IPv4 or IPv6 structs respectively, copying the family, port, and address fields
-as-is without any byte-order conversion, since the OS already provides them in network byte order.
-
-Accessors `getIp()`, `getPort()`, and `getIpType()` all return `Result<T>` and will return an error
-if the address has not been properly initialized. Raw pointer accessors `getAddrRaw()` and
-`getSizeRaw()` expose the underlying storage for passing directly into OS socket calls such as
-`bind()`, `connect()`, `recvfrom()`, and `accept()`.
-
+Accessors `getIp()`, `getPort()`, `getIpType()` return `Result<T>`. Raw accessors `getAddrRaw()`
+and `getSizeRaw()` expose the underlying storage for OS calls like `bind()`, `connect()`, etc.
 
 ---
 
-### `client.hpp` / `client.cpp` — Connected TCP Client
+### `socketOptions.hpp` / `socketOptions.cpp`
 
-`Client` represents one side of an established TCP connection. It owns a `SocketHandle` and
-the remote `Address`. Instances are created by `Tcp::accept()` and handed back as
-`std::unique_ptr<Client>` — the caller owns the lifetime.
+`SocketOptions` is a mixin. Inherit from it and implement `getSocket()` to get all socket
+configuration methods without duplicating any code between `SocketBase` and `Client`.
 
-`Client` is non-copyable and non-movable by design: a socket is a unique OS resource and
-should not be shared or silently transferred.
+```cpp
+class MySocket : public Net::SocketOptions {
+public:
+    SocketHandle getSocket() const noexcept override { return socket_; }
+};
+```
+
+The mixin has no data members. It calls `getSocket()` at the moment each option is applied so
+the handle is always current.
+
+| Method | Option | Description |
+|---|---|---|
+| `setReceiveTimeout(ms)` | `SO_RCVTIMEO` | Unblocks `recv()` after the given duration. `0ms` = block forever. |
+| `setSendTimeout(ms)` | `SO_SNDTIMEO` | Unblocks `send()` if the send buffer stays full too long. `0ms` = block forever. |
+| `setReceiveBuffer(bytes)` | `SO_RCVBUF` | Kernel receive buffer size. |
+| `setSendBuffer(bytes)` | `SO_SNDBUF` | Kernel send buffer size. |
+| `setReuseAddress(bool)` | `SO_REUSEADDR` | Lets the server restart without waiting for `TIME_WAIT`. |
+| `setReusePort(bool)` | `SO_REUSEPORT` | Lets multiple sockets bind the same port. |
+| `setKeepAlive(bool)` | `SO_KEEPALIVE` | OS sends probes on idle connections to detect dead peers. |
+| `setNoDelay(bool)` | `TCP_NODELAY` | Disables Nagle's algorithm for lower latency. |
+| `setBroadcast(bool)` | `SO_BROADCAST` | Required before sending to a broadcast address on UDP. |
+
+> **Note on send timeout:** `SO_SNDTIMEO` only fires when the kernel send buffer is completely full.
+> It will not fire for small writes since those fit in the buffer immediately and `send()` returns
+> right away. To detect a client that disconnected before you send, use `MSG_PEEK` instead.
+
+Both `SocketBase` and `Client` inherit `SocketOptions`, so all methods above are available on
+server sockets and accepted clients alike.
+
+---
+
+### `client.hpp` / `client.cpp`
+
+`Client` represents one side of an established TCP connection. Owns a `SocketHandle` and the
+remote `Address`. Created by `Tcp::accept()` and returned as `std::unique_ptr<Client>`.
+
+Non-copyable and non-movable — a socket is a unique OS resource.
+
+Inherits `SocketOptions` so timeouts and all other options are available directly.
 
 | Method | Description |
 |---|---|
-| `send(data, size)` | Calls `::send()`. Returns bytes sent or an error. |
-| `receive(data, size)` | Calls `::recv()`. Returns bytes received or an error. |
-| `close()` | Explicitly closes the socket. The destructor also closes if not already done. |
+| `send(data, size)` | `::send()` — returns bytes sent or an error. |
+| `receive(data, size)` | `::recv()` — returns bytes received or an error. |
+| `close()` | Closes the socket explicitly. Destructor closes it too if not already done. |
 
 ---
 
-### `server.hpp` / `server.cpp` — Server Socket Classes
+### `server.hpp` / `server.cpp`
 
-#### `SocketBase`
+#### `SocketBase : SocketOptions`
 
-Abstract base providing the shared lifecycle for both `Tcp` and `Udp`:
+Shared lifecycle for `Tcp` and `Udp`. Inherits `SocketOptions` so all socket configuration
+methods are available on every server socket.
 
-- **`init(IPType)`** — initializes Winsock on Windows (once per instance), then calls `::socket()` using the address family resolved from `IPType` and the `SOCK_*` constant from the subclass via the pure virtual `socketType()`.
-- **`bind(ip, port)`** — constructs an `Address` and calls `::bind()`.
-- **`closeSocket()`** — calls `platformClose()` and resets the handle.
+- **`init(IPType)`** — on Windows initializes Winsock (once per instance), then calls `::socket()`.
+- **`bind(ip, port)`** — builds an `Address` and calls `::bind()`.
+- **`closeSocket()`** — calls `platformClose()` and resets the handle to `invalidSocket`.
 - **Destructor** — calls `closeSocket()` and `WSACleanup()` on Windows.
 
 #### `Tcp : SocketBase`
 
-Adds connection-oriented operations:
-
 | Method | Description |
 |---|---|
-| `listen(backlog)` | Marks the socket passive via `::listen()`. |
-| `accept()` | Blocks until a client connects; returns `unique_ptr<Client>`. |
-| `connect(ip, type, port)` | Client-side connection to a remote endpoint. |
-| `close()` | Explicit close (separate from destructor). |
+| `listen(backlog = 10)` | Marks the socket passive via `::listen()`. |
+| `accept()` | Blocks until a client connects. Returns `unique_ptr<Client>`. |
+| `connect(ip, type, port)` | Connects to a remote endpoint. |
+| `close()` | Explicit close. |
 
 #### `Udp : SocketBase`
 
-Adds connectionless datagram operations:
-
 | Method | Description |
 |---|---|
-| `sendTo(data, size, destination)` | Sends a datagram to a specific `Address` via `::sendto()`. |
-| `receiveFrom(buffer, length)` | Reads a datagram and returns the sender's `Address` via `::recvfrom()`. |
+| `sendTo(data, size, destination)` | Sends a datagram to a specific `Address`. |
+| `receiveFrom(buffer, length)` | Reads a datagram and returns `{bytes, senderAddress}`. |
 
 Both `Tcp` and `Udp` are non-copyable but movable.
 
 ---
 
-## Error Handling Philosophy
+## Error Handling
 
-No exceptions are thrown anywhere in the library. Every operation that can fail returns
-`Result<T>` (`std::expected<T, Net::Error>`). The caller checks success with `if (result)`
-and retrieves the error with `result.error()`:
+No exceptions anywhere. Every fallible call returns `Result<T>`. Check with `if (result)` and
+read the error with `result.error()`:
 
 ```cpp
 auto server = Net::Servers::Tcp{};
+
 if (auto r = server.init(Net::IPType::IPv4); !r)
     std::println("init failed: {}", Net::toErrorString(r.error()));
 
@@ -191,21 +214,26 @@ server.listen();
 
 while (true) {
     auto client = server.accept();
-    if (!client)
-        break;
+    if (!client) break;
+
+    client.value()->setReceiveTimeout(std::chrono::milliseconds(2000));
+    client.value()->setSendTimeout(std::chrono::milliseconds(2000));
 
     std::array<uint8_t, 1024> buf{};
     auto received = client.value()->receive(buf.data(), buf.size());
-    if (!received)
+    if (!received) {
         std::println("recv error: {}", Net::toErrorString(received.error()));
+        continue;
+    }
+
+    std::string_view request(reinterpret_cast<char*>(buf.data()), received.value());
+    std::println("request: {}", request);
 }
 ```
 
 ---
 
-## Platform Support
-1. Linux (Not tested yet).
-2. Windows.
+## Requirements
 
-
-Requires C++23 for `std::expected` and `std::println`.
+- C++23
+- Windows (tested) / Linux (not tested for the timeout)
