@@ -2,9 +2,9 @@
 namespace Net {
 
 
-    Client::~Client() {
+    Client::~Client() noexcept{
 
-        if (socket_ != invaliedSocket) {
+        if (socket_ != invalidSocket) {
             platformClose(socket_);
         }
         std::println("[DEBUG] {}:{} Disconnected",address_.getIp().value_or("Unkown"),address_.getPort().value_or(0));
@@ -37,10 +37,10 @@ namespace Net {
             return result;
     }
     Result<void> Client::close() {
-        if (socket_ == invaliedSocket)
+        if (socket_ == invalidSocket)
             return std::unexpected{Net::getError()};
         platformClose(socket_);
-        socket_ = invaliedSocket;
+        socket_ = invalidSocket;
         return {};
     }
 

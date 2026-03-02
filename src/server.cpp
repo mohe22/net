@@ -18,7 +18,7 @@ namespace Net::Servers {
                   return  socket(addressFamily, socketType(), 0);
               })
             .and_then([&](int handle) -> Result<void> {
-                       if (handle == invaliedSocket)
+                       if (handle == invalidSocket)
                            return std::unexpected{Net::getError()}; // OS tells us exactly why socket() failed
                        socket_ = handle;
 
@@ -28,7 +28,7 @@ namespace Net::Servers {
 
     };
     Result<void> SocketBase::bind(const std::string& ip, uint16_t port) noexcept{
-        if (socket_ == invaliedSocket)
+        if (socket_ == invalidSocket)
                return std::unexpected{Error::SocketNotInitialized};
         return Net::Address::from(ip,port).and_then([&](const Address& address)->Result<void> {
             if(::bind(socket_,  address.getAddrRaw(),address.getSize())== -1){

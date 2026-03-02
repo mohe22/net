@@ -3,6 +3,13 @@
 #include <print>
 
 void testIpv6(){
+
+
+
+
+
+
+
     Net::Servers::Udp server;
     std::string errrorOcurred{"MAIN"};
     auto res= server.init(Net::IPType::IPv6)
@@ -27,7 +34,7 @@ void testIpv6(){
                     receiver.getPort().value_or(0)
                 );
 
-                Net::Result<ssize> sentBytes = server.sendTo(message, 14, receiver);
+                Net::Result<Net::ssize> sentBytes = server.sendTo(message, 14, receiver);
                 if (!sentBytes) {
                     std::println("[ERROR] sendTo failed: {}", Net::toErrorString(sentBytes.error()));
                     continue;
@@ -70,7 +77,7 @@ void testIpv4(){
                     receiver.getPort().value_or(0)
                 );
 
-                Net::Result<ssize> sentBytes = server.sendTo(message, 14, receiver);
+                Net::Result<Net::ssize> sentBytes = server.sendTo(message, 14, receiver);
                 if (!sentBytes) {
                     std::println("[ERROR] sendTo failed: {}", Net::toErrorString(sentBytes.error()));
                     continue;
