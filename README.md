@@ -100,14 +100,22 @@ Defines the types and free functions used across the entire library.
 ### `address.hpp` / `address.cpp`
 
 `Address` wraps a `sockaddr_storage` large enough to hold either an IPv4 or IPv6 address.
-Constructed only through static factory methods:
+Constructed only through static factory methods, all of which return `Result<Address>`:
 
-- **`Address::from(string, port)`** — parses a human-readable IP string (IPv4 first, then IPv6) and a port. Fails with `Error::InvalidIP` or `Error::InvalidPort`.
-- **`Address::from(sockaddr_storage)`** — used after `accept()` / `recvfrom()` to wrap the peer address the OS wrote back.
-- **`Address::from(sockaddr_in)`** / **`Address::from(sockaddr_in6)`** — construct directly from a pre-populated struct, no byte-order conversion needed.
+- **`Address::from(string, port)`** — parses a human-readable IP string (IPv4 first, then IPv6)
+  and a port. Stores the IP string directly into `ip_`. Fails with `Error::InvalidIP` or
+  `Error::InvalidPort`.
+- **`Address::from(sockaddr_storage)`** — used after `accept()` / `recvfrom()` to wrap the peer
+  address the OS wrote back. Delegates to the `sockaddr_in` or `sockaddr_in6` overload based on
+  `ss_family`.
+- **`Address::from(sockaddr_in)`** / **`Address::from(sockaddr_in6)`** — construct directly from
+  a pre-populated struct. Uses `inet_ntop()` to build the human-readable IP string stored in
+  `ip_`. Returns `Error::InvalidIP` if `inet_ntop()` fails.
 
-Accessors `getIp()`, `getPort()`, `getIpType()` return `Result<T>`. Raw accessors `getAddrRaw()`
-and `getSizeRaw()` expose the underlying storage for OS calls like `bind()`, `connect()`, etc.
+`getIp()` returns a `string_view` into the internal `ip_` member — no computation on each call,
+valid for the lifetime of the `Address` object. `getPort()`, `getIpType()` also return
+`Result<T>`. Raw accessors `getAddrRaw()` and `getSizeRaw()` expose the underlying storage for
+OS calls like `bind()`, `connect()`, etc.
 
 ---
 
@@ -162,8 +170,9 @@ Inherits `SocketOptions` so timeouts and all other options are available directl
 | `receive(data, size)` | `::recv()` — returns bytes received or an error. |
 | `close()` | Closes the socket explicitly. Destructor closes it too if not already done. |
 
----
 
+
+---
 ### `server.hpp` / `server.cpp`
 
 #### `SocketBase : SocketOptions`

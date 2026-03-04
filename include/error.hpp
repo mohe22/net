@@ -174,7 +174,7 @@ inline Error getError() noexcept {
         case EMSGSIZE:           return Error::SendFailed;
         case ENOBUFS:            return Error::SendFailed;
         case EWOULDBLOCK:
-        case EAGAIN:             return Error::WouldBlock;
+            return Error::WouldBlock;
         case EINPROGRESS:        return Error::WouldBlock;
         case EALREADY:           return Error::WouldBlock;
         case ENOTSOCK:           return Error::SocketNotInitialized;
@@ -184,7 +184,7 @@ inline Error getError() noexcept {
         case EPERM:              return Error::RawSocketNotPermitted;
         case ENETDOWN:
         case ENETUNREACH:
-        case EHOSTUNREACH:       return Error::ConnectionFailed;
+        case EHOSTUNREACH:       return Error::ConnectFailed;
         default:                 return Error::UnknownError;
     }
 #endif

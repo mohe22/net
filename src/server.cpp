@@ -65,8 +65,11 @@ namespace Net::Servers {
             if (clientSocket == -1)
                 return std::unexpected{getError()};
         #endif
+            Result<Net::Address> clientAddressResult = Net::Address::from(clientAddress);
+            if(!clientAddressResult)
+                return std::unexpected{clientAddressResult.error()};
 
-        return std::make_unique<Net::Client>(clientSocket, Net::Address::from(clientAddress));
+            return std::make_unique<Net::Client>(clientSocket, clientAddressResult.value());
     }
 
 

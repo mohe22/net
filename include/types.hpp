@@ -2,6 +2,7 @@
 #include <expected>
 #include "error.hpp"
 
+#define TCP_NODELAY 1
 
 namespace Net {
 

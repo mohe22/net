@@ -127,14 +127,24 @@ public:
      */
     Result<void> close();
 
-    /// The remote address this client is connected to.
-    Address address_{};
+    /*
+        @brief Retrieves the remote IP address and port as strings.
+        @retrun A tuple containing the IP address as a string_view and the port number as a uint16_t.
+        @throws Nothing — marked @c noexcept.
+    */
+    std::tuple<std::string_view, uint16_t> getRemoteIpPort() const noexcept
+    {
+        return {address_.getIp().value_or("UnknownIP"),
+                address_.getPort().value_or(0)};
+    }
 
 private:
     SocketHandle getSocket() const noexcept override { return socket_; }
+
     /// The underlying platform socket handle. @c invaliedSocket when not connected.
     SocketHandle socket_{ invalidSocket };
-
+    /// The remote address this client is connected to.
+    Address address_{};
 };
 
 } // namespace Net
