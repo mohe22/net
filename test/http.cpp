@@ -72,34 +72,48 @@ int main(){
     if (auto r = server.init(Net::IPType::IPv4); !r)
         std::println("init failed: {}", Net::toErrorString(r.error()));
 
+
+    if (auto r = server.setReusePort(); !r)
+        std::println("setReusePort failed: {}", Net::toErrorString(r.error()));
+    if (auto r = server.setReuseAddress(); !r)
+        std::println("setReuseAddress failed: {}", Net::toErrorString(r.error()));
+
+
+        
     if (auto r = server.bind("0.0.0.0", 8080); !r)
         std::println("bind failed: {}", Net::toErrorString(r.error()));
 
     if(auto r = server.listen(); !r)
         std::println("listen failed: {}", Net::toErrorString(r.error()));
 
+ 
+
     std::chrono::milliseconds receiveTimeout(2000);
     std::chrono::milliseconds sendTimeout(2000);
-
+    auto client = server.accept();
+    if (!client)
+        return 0;
+    if (auto r = client.value()->setReceiveTimeout(receiveTimeout); !r)
+    {
+        std::println("setReceiveTimeout failed: {}", Net::toErrorString(r.error()));
+    }
+    if (auto r = client.value()->setSendTimeout(sendTimeout); !r)
+    {
+        std::println("setSendTimeout failed: {}", Net::toErrorString(r.error()));
+    }
+    auto [ip, port] = client.value()->getRemoteIpPort();
     while (true) {
-        auto client = server.accept();
-        if (!client)
-            break;
-        if(auto r = client.value()->setReceiveTimeout(receiveTimeout); !r)
-            std::println("setReceiveTimeout failed: {}", Net::toErrorString(r.error()));
-        if(auto r = client.value()->setSendTimeout(sendTimeout); !r)
-            std::println("setSendTimeout failed: {}", Net::toErrorString(r.error()));
 
 
         std::array<uint8_t, 1024> buf{};
         auto received = client.value()->receive(buf.data(), buf.size());
         if (!received){
             if(received.error() == Error::ConnectionTimeout){
-                std::println("TimeOut has occured for: {}:{}",client.value()->address_.getIp().value_or("unkown"), client.value()->address_.getPort().value_or(0));
+                std::println("TimeOut has occured for: {}:{}",ip, port);
                 continue;
             }
             std::println("recv error: {}", Net::toErrorString(received.error()));
-
+            break;
         }
 
         std::println("Rquest: {}", std::string_view(reinterpret_cast<char*>(buf.data()), received.value()));
@@ -109,7 +123,7 @@ int main(){
         auto sent = client.value()->send(response.data(), response.size());
         if (!sent){
             if(sent.error() == Error::ConnectionTimeout){
-                std::println("sent TimeOut has occured for: {}:{}",client.value()->address_.getIp().value_or("unkown"), client.value()->address_.getPort().value_or(0));
+                std::println("sent TimeOut has occured for: {}:{}",ip, port);
                 continue;
             }
             std::println("send error: {}", Net::toErrorString(sent.error()));
