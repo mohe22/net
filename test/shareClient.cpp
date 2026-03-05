@@ -1,10 +1,6 @@
-
-
-#include "../include/server.hpp"
 #include "../include/client.hpp"
 #include "../include/types.hpp"
 #include <fstream>
-
 #include <print>
 
 using namespace std;
@@ -12,69 +8,58 @@ using namespace Net;
 
 int main()
 {
+    const string filePath = "./received.bin";
 
-    // g++ ../src/socketOptions.cpp ../src/client.cpp ../src/address.cpp ../src/server.cpp http.cpp --std=c++26 -fsanitize=address,undefined -Wall -Wextra  -o server-http
-
-    Net::Client client;
-    if (auto r = client.connect("127.0.0.1",IPType::IPv4, 8080); !r)
+    auto clientResult = Client::connect("127.0.0.1", 8080, IPType::IPv4);
+    if (!clientResult)
     {
-        std::println("Failed to connect to server: {}", Net::toErrorString(r.error()));
+        std::println("Failed to connect to server: {}", Net::toErrorString(clientResult.error()));
         return 1;
     }
 
-    if (auto r = server.init(IPType::IPv4); !r)
-    {
-        std::println("Failed to initialize server: {}", Net::toErrorString(r.error()));
-        return 1;
-    }
-    if (auto r = server.bind("0.0.0.0:8080", 8080); !r)
-    {
-        std::println("Failed to bind server: {}", Net::toErrorString(r.error()));
-        return 1;
-    }
+    auto &client = clientResult.value();
+    std::println("Connected to server!");
 
-    if (auto r = server.listen(); !r)
-    {
-        std::println("Failed to listen: {}", Net::toErrorString(r.error()));
-        return 1;
-    }
-    auto client = server.accept();
-    if (!client)
-    {
-        std::println("Failed to accept client: {}", Net::toErrorString(client.error()));
-        return 1;
-    }
-
-    std::fstream file(filePath, std::ios::in | std::ios::out | std::ios::binary);
-
+    std::fstream file(filePath, std::ios::out | std::ios::binary | std::ios::trunc);
     if (!file)
     {
-        std::println("Failed to create file: {}", filePath);
+        std::println("Failed to open file for writing: {}", filePath);
         return 1;
     }
 
     char buffer[1024];
-    Net::ssize bytesSent = 0;
+    Net::ssize totalReceived = 0;
 
-    file.seekg(0, std::ios::end);
-    std::size_t fileSize = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    while (bytesSent < fileSize)
+    while (true)
     {
-        size_t toRead = std::min(sizeof(buffer), fileSize - bytesSent);
-        file.read(buffer, toRead);
-        auto bytesSend = client.value()->send(
-            buffer + bytesSent,
-            toRead);
-        if (!bytesSend)
+        auto result = client->receive(buffer, sizeof(buffer));
+        if (!result)
         {
-            std::println("Failed to send data: {}", Net::toErrorString(bytesSend.error()));
+            if (result.error() == Net::Error::ConnectionClosed)
+            {
+                std::println("Server closed the connection. Total bytes received: {}", totalReceived);
+                break;
+            }
+            std::println("Failed to receive data: {}", Net::toErrorString(result.error()));
             file.close();
             return 1;
         }
-        bytesSent += bytesSend.value();
+
+        Net::ssize bytesReceived = result.value();
+        file.write(buffer, bytesReceived);
+
+        if (!file)
+        {
+            std::println("Failed to write to file after {} bytes", totalReceived);
+            file.close();
+            return 1;
+        }
+
+        totalReceived += bytesReceived;
+        std::println("Received {} bytes ({} total)", bytesReceived, totalReceived);
     }
 
     file.close();
+    std::println("File saved to: {}", filePath);
+    return 0;
 }

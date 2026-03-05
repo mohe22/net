@@ -17,18 +17,12 @@ namespace Net {
 
     Result<void> SocketOptions::setOption(SocketOption option,
         const void* optval, int optvalSize) const noexcept {
-    #ifdef _WIN32
-        const char* optptr = reinterpret_cast<const char*>(optval);
-    #else
-        const void* optptr = optval;
-    #endif
-        int result = ::setsockopt(
-            getSocket(),
-            getOptionLevel(option),
-            static_cast<int>(option),
-            optptr,
-            optvalSize
-        );
+            int result = ::setsockopt(
+                getSocket(),
+                getOptionLevel(option),
+                static_cast<int>(option),
+                optval,
+                optvalSize);
         if (result == -1) return std::unexpected{Net::getError()};
         return {};
     }

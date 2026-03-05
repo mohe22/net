@@ -3,8 +3,8 @@
 
 
 namespace Net::Servers {
+        
     Result<void> SocketBase::init(IPType ipType) noexcept {
-
         // Windows must initialize Winsock before any socket calls
         #ifdef _WIN32
             if (wsaInitialized_)
@@ -22,7 +22,6 @@ namespace Net::Servers {
                        if (handle == invalidSocket)
                            return std::unexpected{Net::getError()}; // OS tells us exactly why socket() failed
                        socket_ = handle;
-
                        return {};
             });
     };
@@ -40,7 +39,6 @@ namespace Net::Servers {
     };
 
 
-
     Result<void> Tcp::listen(int backlog) const noexcept{
         if (!isValidSocket())
                return std::unexpected{Error::SocketNotInitialized};
@@ -48,6 +46,8 @@ namespace Net::Servers {
             return std::unexpected{Net::getError()};
         return {};
     };
+
+  
     Result<std::unique_ptr<Client>> Tcp::accept() const noexcept {
         if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
@@ -57,13 +57,13 @@ namespace Net::Servers {
         socklen_t clientAddressLength = sizeof(clientAddress);
 
         #ifdef _WIN32
-            SOCKET clientSocket = ::accept(getSocket(), reinterpret_cast<sockaddr*>(&clientAddress), &clientAddressLength);
+            SocketHandle clientSocket = ::accept(getSocket(), reinterpret_cast<sockaddr*>(&clientAddress), &clientAddressLength);
             if (clientSocket == INVALID_SOCKET)
                 return std::unexpected{getError()};
         #else
-            int clientSocket = ::accept(getSocket(), reinterpret_cast<sockaddr*>(&clientAddress), &clientAddressLength);
-            if (clientSocket == -1)
-                return std::unexpected{getError()};
+        SocketHandle clientSocket = ::accept(getSocket(), reinterpret_cast<sockaddr *>(&clientAddress), &clientAddressLength);
+        if (clientSocket == -1)
+            return std::unexpected{getError()};
         #endif
             Result<Net::Address> clientAddressResult = Net::Address::from(clientAddress);
             if(!clientAddressResult)

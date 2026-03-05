@@ -27,6 +27,8 @@ namespace Net {
         class SocketBase: public Net::SocketOptions {
             public:
 
+                
+
                 /**
                  * @brief Initializes the socket for the given IP version.
                  *
@@ -106,7 +108,7 @@ namespace Net {
                  *
                  * @throws Nothing — marked @c noexcept.
                  */
-                SocketHandle getSocket() const noexcept { return socket_; }
+                SocketHandle getSocket() const noexcept override { return socket_; }
 
                 /**
                  * @brief Returns the local address this socket is bound to.
@@ -374,19 +376,7 @@ namespace Net {
              */
             Result<std::unique_ptr<Client>> accept() const noexcept;
 
-            /**
-             * @brief Connects this socket to a remote TCP endpoint.
-             *
-             * @param ip    The remote IP address string (IPv4 or IPv6).
-             * @param type  The IP version of @p ip (@c IPType::V4 or @c IPType::V6).
-             * @param port  The remote port in host byte order.
-             *
-             * @return @c Result<void> with no value on success.
-             * @return @c std::unexpected with the appropriate @c Error on failure.
-             *
-             * @throws Nothing — marked @c noexcept.
-             */
-            Result<void> connect(const std::string& ip, IPType type, uint16_t port) const noexcept;
+          
 
             /**
              * @brief Closes the TCP socket explicitly.

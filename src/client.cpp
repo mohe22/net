@@ -13,6 +13,37 @@ namespace Net {
     {
     }
 
+    Result<std::unique_ptr<Client>> Client::connect(const std::string &ip,uint16_t port,IPType ipType) noexcept {
+        #ifdef _WIN32
+                WSADATA wsaData;
+                if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+                    return std::unexpected{Error::WSAStartupFailed};
+        #endif
+
+        auto addressResult = Address::from(ip, port);
+        if (!addressResult)
+            return std::unexpected{addressResult.error()};
+
+        const Address &address = addressResult.value();
+
+        auto familyResult = toAddressFamily(ipType);
+        if (!familyResult)
+            return std::unexpected{familyResult.error()};
+
+        SocketHandle s = ::socket(familyResult.value(), SOCK_STREAM, 0);
+
+        if (s == invalidSocket)
+            return std::unexpected{Net::getError()};
+
+        if (::connect(s, address.getAddrRaw(), address.getSize()) == -1)
+        {
+            platformClose(s);
+            return std::unexpected{Net::getError()};
+        }
+
+        return std::make_unique<Client>(s, address);
+    }
+
     Result<ssize> Client::receive(void *data, size_t size)
     {
         #ifdef _WIN32
