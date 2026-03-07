@@ -26,24 +26,43 @@ namespace Net {
 class SocketOptions {
 public:
 
-    /**
-     * @brief Sets the receive timeout for the socket.
-     *
-     * After this timeout elapses with no data received, @c recv() / @c recvfrom()
-     * will return with @c Error::WouldBlock instead of blocking indefinitely.
-     *
-     * @param timeout Duration in milliseconds. Pass @c 0ms to disable (block forever).
-     *
-     * @return @c Result<void> with no value on success.
-     * @return @c std::unexpected with the platform error on failure.
-     *
-     * @throws Nothing — marked @c noexcept.
-     */
-    Result<void> setReceiveTimeout(std::chrono::milliseconds timeout) const noexcept {
-        return setTimeoutOption(SocketOption::ReceiveTimeout, timeout);
-    }
+/**
+    * @brief Sets or clears non-blocking mode on the socket.
+    *
+    * When enabled, socket operations (@c send, @c recv, @c accept, etc.) return
+    * immediately with an error rather than blocking when they cannot complete.
+    *
+    * @note On Linux this uses @c fcntl() with @c O_NONBLOCK.
+    *       On Windows this uses @c ioctlsocket() with @c FIONBIO.
+    *
+    * @param nonBlocking  @c true (default) to enable non-blocking mode;
+    *                     @c false to restore blocking mode.
+    *
+    * @return An empty @c Result<void> on success.
+    * @return @c std::unexpected{Error::SocketOptionFailed} if the underlying
+    *         system call fails. Inspect @c errno (Linux) or
+    *         @c WSAGetLastError() (Windows) for the specific cause.
+    *
+    * @throws Nothing — marked @c noexcept.
+    */
+Result<void> setNonBlocking(bool nonBlocking = true)  noexcept;    /**
+    * @brief Sets the receive timeout for the socket.
+    *
+    * After this timeout elapses with no data received, @c recv() / @c recvfrom()
+    * will return with @c Error::WouldBlock instead of blocking indefinitely.
+    *
+    * @param timeout Duration in milliseconds. Pass @c 0ms to disable (block forever).
+    *
+    * @return @c Result<void> with no value on success.
+    * @return @c std::unexpected with the platform error on failure.
+    *
+    * @throws Nothing — marked @c noexcept.
+    */
+Result<void> setReceiveTimeout(std::chrono::milliseconds timeout) const noexcept {
+    return setTimeoutOption(SocketOption::ReceiveTimeout, timeout);
+}
 
-    /**
+/**
      * @brief Sets the send timeout for the socket.
      *
      * After this timeout elapses with no data sent, @c send() / @c sendto()
@@ -186,6 +205,7 @@ public:
         int val = enable ? 1 : 0;
         return setOption(SocketOption::Broadcast, &val, sizeof(val));
     }
+    bool isBlocking() const noexcept { return isBlocking_; }
 
 protected:
 
@@ -197,6 +217,7 @@ protected:
     virtual SocketHandle getSocket() const noexcept = 0;
 
 private:
+    bool isBlocking_ {false}; // tracks whether the socket is in blocking mode
 
     /**
      * @brief Low-level wrapper around @c ::setsockopt().

@@ -102,7 +102,7 @@ enum class Error : uint8_t  {
     SocketAlreadyClosed  = 26, ///< An operation was attempted after the socket was closed.
     WouldBlock           = 27, ///< Non-blocking socket has no data ready yet (@c EAGAIN / @c WSAEWOULDBLOCK).
 
-    // -------------------------------------------------------------------------
+    SocketOptionFailed   = 28, ///< Setting a socket option failed.
     // Raw Socket
     // -------------------------------------------------------------------------
 
@@ -219,6 +219,7 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::UnknownError:          return "Unknown error";
         case Error::WSAStartupFailed:      return "Windows Winsock initialization failed";
         case Error::SocketCreationFailed:  return "Failed to create socket";
+        case Error::SocketOptionFailed:    return "Setting a socket option failed";
         case Error::InvalidIP:             return "Invalid IP address format";
         case Error::InvalidPort:           return "Port out of range (0 or >65535)";
         case Error::InvalidAddressFamily:  return "Unknown IP type or incompatible address family";

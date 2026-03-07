@@ -17,7 +17,7 @@ namespace Net {
  * @note All operations are blocking. @c send() and @c receive() will block
  *       until data is written/read or an error occurs.
  */
-class Client: public SocketOptions {
+class Connection: public SocketOptions {
 
     public:
         /**
@@ -51,7 +51,7 @@ class Client: public SocketOptions {
          *
          * @throws Nothing — marked @c noexcept.
          */
-        static Result<std::unique_ptr<Client>> connect(
+        static Result<std::unique_ptr<Connection>> connect(
             const std::string &ip,
             uint16_t port,
             IPType ipType = IPType::IPv4) noexcept;
@@ -63,7 +63,7 @@ class Client: public SocketOptions {
          * default-initialized. Calling @c send(), @c receive(), or @c close()
          * on this object results in an error until a valid socket is assigned.
          */
-        Client() = default;
+        Connection() = default;
 
         /**
          * @brief Destructor — closes the socket if still open.
@@ -74,7 +74,7 @@ class Client: public SocketOptions {
          *
          * @throws Nothing — marked @c noexcept.
          */
-        ~Client() noexcept;
+        ~Connection() noexcept;
 
         /**
          * @brief Constructs a Client from an accepted socket and its remote address.
@@ -88,19 +88,20 @@ class Client: public SocketOptions {
          *
          * @throws Nothing — marked @c noexcept.
          */
-        Client(SocketHandle socket, const Address &address) noexcept;
+        Connection(SocketHandle socket, const Address &address) noexcept;
 
         /// @brief Deleted — socket ownership cannot be shared.
-        Client(const Client &) = delete;
+        Connection(const Connection &) = delete;
 
         /// @brief Deleted — socket ownership cannot be transferred.
-        Client(Client &&) = delete;
+        Connection(Connection &&) = delete;
 
         /// @brief Deleted — socket ownership cannot be shared.
-        Client &operator=(const Client &) = delete;
+        Connection &operator=(const Connection &) = delete;
 
         /// @brief Deleted — socket ownership cannot be transferred.
-        Client &operator=(Client &&) = delete;
+        Connection &operator=(Connection &&) = delete;
+
 
         /**
          * @brief Sends raw data to the remote peer.

@@ -3,7 +3,7 @@
 
 
 namespace Net::Servers {
-        
+
     Result<void> SocketBase::init(IPType ipType) noexcept {
         // Windows must initialize Winsock before any socket calls
         #ifdef _WIN32
@@ -47,8 +47,8 @@ namespace Net::Servers {
         return {};
     };
 
-  
-    Result<std::unique_ptr<Client>> Tcp::accept() const noexcept {
+
+    Result<std::unique_ptr<Connection>> Tcp::accept() const noexcept {
         if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
 
@@ -69,7 +69,7 @@ namespace Net::Servers {
             if(!clientAddressResult)
                 return std::unexpected{clientAddressResult.error()};
 
-            return std::make_unique<Net::Client>(clientSocket, clientAddressResult.value());
+            return std::make_unique<Net::Connection>(clientSocket, clientAddressResult.value());
     }
 
 

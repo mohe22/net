@@ -1,11 +1,10 @@
 #pragma once
 #include "platform.hpp"
 #include "types.hpp"
-#include "client.hpp"
+#include "connection.hpp"
 #include "socketOptions.hpp"
 
 
-#include <memory> // for std::unique_ptr
 #include <chrono> // for std::chrono::milliseconds
 
 
@@ -27,7 +26,7 @@ namespace Net {
         class SocketBase: public Net::SocketOptions {
             public:
 
-                
+
 
                 /**
                  * @brief Initializes the socket for the given IP version.
@@ -374,9 +373,9 @@ namespace Net {
              *
              * @throws Nothing — marked @c noexcept.
              */
-            Result<std::unique_ptr<Client>> accept() const noexcept;
+            Result<std::unique_ptr<Connection>> accept() const noexcept;
 
-          
+
 
             /**
              * @brief Closes the TCP socket explicitly.

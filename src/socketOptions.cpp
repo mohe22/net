@@ -1,7 +1,23 @@
 #include "../include/socketOptions.hpp"
 
 namespace Net {
+    Result<void> SocketOptions::setNonBlocking(bool enabled)  noexcept {
+    #ifdef _WIN32
+        u_long mode = enabled ? 1 : 0;
+        if (ioctlsocket(fd_, FIONBIO, &mode) == SOCKET_ERROR)
+            return std::unexpected{Net::Error::SocketOptionFailed};
+    #else
+        int flags = fcntl(getSocket(), F_GETFL, 0);
+        if (flags == -1)
+            return std::unexpected{Net::Error::InvalidSocketType};
+        flags = enabled ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+        if (fcntl(getSocket(), F_SETFL, flags) == -1)
+            return std::unexpected{Net::Error::SocketOptionFailed};
+    #endif
 
+        isBlocking_ = !enabled;
+        return {};
+    }
     Result<void> SocketOptions::setTimeoutOption(SocketOption option,
         std::chrono::milliseconds timeout) const noexcept {
     #ifdef _WIN32

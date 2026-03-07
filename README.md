@@ -15,13 +15,13 @@ net/
 │   ├── error.hpp          # Error enum + getError() + toErrorString()
 │   ├── types.hpp          # Result<T>, IPType, Protocol, helper converters
 │   ├── address.hpp        # Address class (IPv4/IPv6 wrapper over sockaddr_storage)
-│   ├── client.hpp         # Client class (owns a connected TCP socket)
+│   ├── connection.hpp     # Connection class (owns a connected TCP socket)
 │   ├── socketOptions.hpp  # SocketOptions mixin (timeouts, buffers, keep-alive, etc.)
 │   ├── server.hpp         # SocketBase, Tcp, Udp server classes
 │   └── net.hpp            # Top-level convenience include
 └── src/
     ├── address.cpp        # Address factory implementations
-    ├── client.cpp         # Client send/receive/close
+    ├── connection.cpp     # Connection send/receive/close
     ├── socketOptions.cpp  # setOption / setTimeoutOption implementations
     ├── server.cpp         # SocketBase init/bind, Tcp listen/accept, Udp sendTo/receiveFrom
     ├── test-udp.cpp       # UDP usage example
@@ -40,7 +40,7 @@ net/
 ├─────────────────────────────────────┤
 │      SocketOptions (mixin)          │  ← Socket options (timeouts, buffers, flags)
 ├─────────────────────────────────────┤
-│         Client (client.hpp)         │  ← Owns an accepted/connected socket
+│     Connection (connection.hpp)     │  ← Owns an accepted/connected socket
 ├─────────────────────────────────────┤
 │         Address (address.hpp)       │  ← Wraps sockaddr_storage (IPv4 + IPv6)
 ├─────────────────────────────────────┤
@@ -122,7 +122,7 @@ OS calls like `bind()`, `connect()`, etc.
 ### `socketOptions.hpp` / `socketOptions.cpp`
 
 `SocketOptions` is a mixin. Inherit from it and implement `getSocket()` to get all socket
-configuration methods without duplicating any code between `SocketBase` and `Client`.
+configuration methods without duplicating any code between `SocketBase` and `Connection`.
 
 ```cpp
 class MySocket : public Net::SocketOptions {
@@ -148,17 +148,17 @@ the handle is always current.
 
 > **Note on send timeout:** `SO_SNDTIMEO` only fires when the kernel send buffer is completely full.
 > It will not fire for small writes since those fit in the buffer immediately and `send()` returns
-> right away. To detect a client that disconnected before you send, use `MSG_PEEK` instead.
+> right away. To detect a connection that disconnected before you send, use `MSG_PEEK` instead.
 
-Both `SocketBase` and `Client` inherit `SocketOptions`, so all methods above are available on
-server sockets and accepted clients alike.
+Both `SocketBase` and `Connection` inherit `SocketOptions`, so all methods above are available on
+server sockets and accepted connections alike.
 
 ---
 
-### `client.hpp` / `client.cpp`
+### `connection.hpp` / `connection.cpp`
 
-`Client` represents one side of an established TCP connection. Owns a `SocketHandle` and the
-remote `Address`. Created by `Tcp::accept()` and returned as `std::unique_ptr<Client>`.
+`Connection` represents one side of an established TCP connection. Owns a `SocketHandle` and the
+remote `Address`. Created by `Tcp::accept()` and returned as `std::unique_ptr<Connection>`.
 
 Non-copyable and non-movable — a socket is a unique OS resource.
 
@@ -190,7 +190,7 @@ methods are available on every server socket.
 | Method | Description |
 |---|---|
 | `listen(backlog = 10)` | Marks the socket passive via `::listen()`. |
-| `accept()` | Blocks until a client connects. Returns `unique_ptr<Client>`. |
+| `accept()` | Blocks until a client connects. Returns `unique_ptr<Connection>`. |
 | `connect(ip, type, port)` | Connects to a remote endpoint. |
 | `close()` | Explicit close. |
 

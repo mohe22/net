@@ -1,7 +1,6 @@
 #pragma once
 #include <expected>
 #include "error.hpp"
-
 #define TCP_NODELAY 1
 
 namespace Net {
@@ -10,7 +9,7 @@ namespace Net {
 
     /**
      * @brief Generic result type used throughout the Net library.
-     *
+
      * Wraps @c std::expected<T, Net::Error>. On success, holds a value of
      * type @c T. On failure, holds a @c Net::Error via @c std::unexpected.
      *
@@ -106,8 +105,6 @@ namespace Net {
         /// @note Windows → @c DWORD milliseconds.
         /// @note Linux   → @c struct timeval { seconds, microseconds }.
         SendTimeout    = SO_SNDTIMEO,
-
-
         /// Disables Nagle's algorithm, sending packets immediately without buffering.
         /// @note TCP only. Not valid on UDP sockets.
         /// @note Supported on both Windows and Linux.
