@@ -1,7 +1,6 @@
 #pragma once
 #include "types.hpp"
 #include <functional>
-
 constexpr size_t MAX_EVENTS = 10;
 
 namespace Net {
@@ -30,8 +29,9 @@ namespace Net {
         /** Fired when fd is ready to write (EPOLLOUT). */
         void onWrite(CallBackEvent cb);
 
+
         /** Fired on EPOLLERR or EPOLLHUP. Call close(fd, ctx) from here. */
-        void onError(CallBackEvent cb);
+        void onError(ErrorCallBack cb);
 
         /**
          * Fired after close() removes the fd. You MUST reclaim ctx here or it leaks —
@@ -48,7 +48,6 @@ namespace Net {
 
         /** Returns the underlying epoll fd. */
         int fd() const noexcept;
-
         ~Poll();
 
         Poll(const Poll&)            = delete;
@@ -62,11 +61,12 @@ namespace Net {
         int efd_{-1};
         int timeout_{-1};
 
-        CallBackEvent          onRead_   {nullptr};
-        CallBackEvent          onWrite_  {nullptr};
-        CallBackEvent          onError_  {nullptr};
-        CallBackEvent          onClose_  {nullptr};
-        std::function<void()>  onTimeout_{nullptr};
+        CallBackEvent onRead_ {nullptr};
+        CallBackEvent onWrite_ {nullptr};
+        ErrorCallBack onError_ {nullptr};
+        CallBackEvent onClose_ {nullptr};
+        std::function<void()> onTimeout_{nullptr};
+
 
         Poll(int fd, int timeout);
     };

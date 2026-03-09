@@ -1,6 +1,7 @@
+
 #include "../include/epoll.hpp"
 #include <algorithm>
-#include <print>
+#include <expected>
 
 namespace Net {
 
@@ -41,12 +42,17 @@ namespace Net {
     Result<void> Poll::watch() noexcept {
         for (;;) {
             int nfds = epoll_wait(fd(), events_, MAX_EVENTS, timeout_);
-            if (nfds == 0)  { if (onTimeout_) onTimeout_(); continue; }
-            if (nfds == -1) { std::println("[ERROR] epoll_wait failed: {}", Net::toErrorString(getError())); continue; }
+            if (nfds == 0)  {if (onTimeout_) onTimeout_(); continue;};
+            if (nfds == -1) {
+                       if (errno == EINTR) continue;
+                       return std::unexpected{getError()};
+                   }
 
             for (int i = 0; i < nfds; i++) {
-                void*    ctx = events_[i].data.ptr;
+                void*  ctx = events_[i].data.ptr;
                 uint32_t ev  = events_[i].events;
+
+
                 if (ev & static_cast<uint32_t>(Net::EpollEvent::EPOLLRDHUP))
                     if (onClose_) onClose_(ctx);
 
@@ -58,16 +64,23 @@ namespace Net {
 
                 if (ev & (static_cast<uint32_t>(Net::EpollEvent::EPOLLERR) |
                            static_cast<uint32_t>(Net::EpollEvent::EPOLLHUP)))
-                    if (onError_) onError_(ctx);
+                    if (onError_) {
+                        int  err = 0;
+                        socklen_t len = sizeof(err);
+                        // TODO: get the event fd;
+                        getsockopt(fd(), SOL_SOCKET, SO_ERROR, &err, &len);
+                        errno = err ? err : EIO;
+                        onError_(ctx,getError());
+                    }
 
             }
         }
     }
 
-    void Poll::onRead    (CallBackEvent cb)         { onRead_    = std::move(cb); }
-    void Poll::onWrite   (CallBackEvent cb)         { onWrite_   = std::move(cb); }
-    void Poll::onError   (CallBackEvent cb)         { onError_   = std::move(cb); }
-    void Poll::onClose   (CallBackEvent cb)         { onClose_   = std::move(cb); }
+    void Poll::onRead(CallBackEvent cb)  { onRead_    = std::move(cb); }
+    void Poll::onWrite (CallBackEvent cb) { onWrite_   = std::move(cb); }
+    void Poll::onError(ErrorCallBack cb)   { onError_   = std::move(cb); }
+    void Poll::onClose (CallBackEvent cb){ onClose_   = std::move(cb); }
     void Poll::onTimeout (std::function<void()> cb) { onTimeout_ = std::move(cb); }
 
     int Poll::fd() const noexcept { return efd_; }
@@ -84,8 +97,8 @@ namespace Net {
     Poll& Poll::operator=(Poll&& other) noexcept {
         if (this != &other) {
             if (efd_ != -1) ::close(efd_);
-            ev_      = other.ev_;
-            efd_     = other.efd_;
+            ev_   = other.ev_;
+            efd_ = other.efd_;
             timeout_ = other.timeout_;
             std::copy_n(other.events_, MAX_EVENTS, events_);
             other.efd_ = -1;

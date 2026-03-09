@@ -251,6 +251,8 @@ namespace Net {
     using CallBackEvent = std::function<void( void* ptr)>;
 
 
+    using ErrorCallBack = std::function<void( void* ptr,Net::Error)>;
+
 
     /**
         * @brief Returns the correct protocol level for a given socket option.

@@ -77,7 +77,7 @@ int main() {
     if (!poll) return 1;
     Net::Poll& poller = poll.value();
 
-    //  Sole owner of all Client objects 
+    //  Sole owner of all Client objects
     std::unordered_map<int, std::unique_ptr<Client>> clients;
 
     if (auto r = poller.add(server.getSocket(),
@@ -92,11 +92,11 @@ int main() {
         clients.erase(fd);
     });
 
-    poller.onTimeout([]() {
-        std::println("[DEBUG] timeout...");
+    poller.onTimeout([&]() {
+        std::println("timeout");
     });
-
     poller.onRead([&](void* ctx) {
+
         if (!ctx) {
             auto conn = server.accept();
             if (!conn) {
@@ -113,7 +113,7 @@ int main() {
             }
 
             auto  client = std::make_unique<Client>(std::move(conn.value()));
-            int fd   = client->conn->getSocket();
+            int fd= client->conn->getSocket();
 
             if (auto r = poller.add(fd,
                     Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP,
@@ -189,13 +189,14 @@ int main() {
             poller.close(client->conn->getSocket(), ctx);
     });
 
-    poller.onError([&](void* ctx) {
+    poller.onError([&](void* ctx,Net::Error err) {
         if (!ctx) return;
-        std::println("error on fd={}", static_cast<Client*>(ctx)->conn->getSocket());
+        std::println("error on fd={}. error={}", static_cast<Client*>(ctx)->conn->getSocket(), Net::toErrorString(err));
         poller.close(static_cast<Client*>(ctx)->conn->getSocket(), ctx);
     });
 
     std::println("Listening on :8080");
+
     auto re = poller.watch();
     if (!re) {
         std::println("watch error: {}", Net::toErrorString(re.error()));
