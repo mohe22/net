@@ -77,7 +77,7 @@ int main() {
     if (!poll) return 1;
     Net::Poll& poller = poll.value();
 
-    // ── Sole owner of all Client objects ──────────────────────────────────────
+    //  Sole owner of all Client objects 
     std::unordered_map<int, std::unique_ptr<Client>> clients;
 
     if (auto r = poller.add(server.getSocket(),
@@ -88,7 +88,7 @@ int main() {
     poller.onClose([&](void* ctx) {
         auto* client = static_cast<Client*>(ctx);
         int   fd     = client->conn->getSocket();
-       // std::println("client fd={} disconnected", fd);
+       std::println("client fd={} disconnected", fd);
         clients.erase(fd);
     });
 
@@ -105,7 +105,7 @@ int main() {
             }
 
             auto [ip, port] = conn.value()->getRemoteIpPort();
-           // std::println("new client {}:{}", ip, port);
+            std::println("new client {}:{}", ip, port);
 
             if (auto r = conn.value()->setNonBlocking(); !r) {
                 std::println("setNonBlocking failed: {}", Net::toErrorString(r.error()));
