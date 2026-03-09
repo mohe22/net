@@ -248,38 +248,60 @@ socket completely in one go or you will miss events until the next write.
 | `onClose(cb)` | After `close()` removes the fd, or when the remote side shuts down (`EPOLLRDHUP`). **You must reclaim ctx here or it leaks.** |
 | `onTimeout(cb)` | `epoll_wait` timed out with no events — use for idle work, pinging clients, expiring stale connections |
 
-#### Example
+### Example
+---
 
+
+#### Setup & Listen
 ```cpp
-auto poll = Net::Poll::create(3000);
+auto server = Net::Servers::Tcp{};
+server.init(Net::IPType::IPv4);
+server.setNonBlocking();
+server.setReusePort();
+server.setReuseAddress();
+server.bind("0.0.0.0", 8080);
+server.listen();
+
+auto poll = Net::Poll::create();
 Net::Poll& poller = poll.value();
+poller.add(server.getSocket(), EpollEvent::EPOLLIN | EpollEvent::EPOLLERR);
+```
 
-poller.add(server.getSocket(), Net::EpollEvent::EPOLLIN);
+#### Client Lifetime
+```cpp
+// map is the sole owner — poller holds raw observer ptrs only
+std::unordered_map<int, std::unique_ptr<Client>> clients;
 
-poller.onClose([](void* ctx) {
-    std::unique_ptr<Client>{ static_cast<Client*>(ctx) };  // free on disconnect
+poller.onClose([&](void* ctx) {
+    clients.erase(static_cast<Client*>(ctx)->conn->getSocket());
 });
+```
 
+#### Accept → Read → Write → Close Pipeline
+```cpp
 poller.onRead([&](void* ctx) {
     if (!ctx) {
-        // null ctx = server fd, no context was passed
-        auto conn = server.accept();
+        // ctx == null → server fd, accept new client
         auto client = std::make_unique<Client>(std::move(conn.value()));
-        poller.add(client->fd(),
-            Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLRDHUP,
-            client.get());
-        client.release();
+        poller.add(fd, EpollEvent::EPOLLIN, client.get());
+        clients.emplace(fd, std::move(client));
     } else {
-        auto* client = static_cast<Client*>(ctx);
-        // read from client->conn ...
+        // ctx != null → client fd, read request
+        // build response into client->buffer, then arm EPOLLOUT
+        poller.mod(fd, EpollEvent::EPOLLOUT, client);
     }
 });
 
-poller.onTimeout([]() {
-    // runs every 3000ms with no events
+poller.onWrite([&](void* ctx) {
+    // drain client->buffer, then close when offset >= totalLen
+    if (client->offset >= client->totalLen)
+        poller.close(fd, ctx);
 });
+```
 
-poller.watch();
+#### Run
+```cpp
+poller.watch(); // blocks — fires callbacks on events
 ```
 
 ---
