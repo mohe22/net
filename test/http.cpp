@@ -6,6 +6,7 @@
 #include <string_view>
 #include <cstring>
 #include <unordered_map>
+
 using namespace Net;
 
 namespace Net::Http {
@@ -27,9 +28,9 @@ namespace Net::Http {
     std::string makeResponse(StatusCode code, std::string_view body) {
         std::string_view statusLine;
         switch (code) {
-            case StatusCode::Ok:       statusLine = "HTTP/1.1 200 OK";                    break;
-            case StatusCode::NotFound: statusLine = "HTTP/1.1 404 Not Found";             break;
-            default:                   statusLine = "HTTP/1.1 500 Internal Server Error";  break;
+            case StatusCode::Ok:       statusLine = "HTTP/1.1 200 OK";                   break;
+            case StatusCode::NotFound: statusLine = "HTTP/1.1 404 Not Found";            break;
+            default:                   statusLine = "HTTP/1.1 500 Internal Server Error"; break;
         }
         return std::string(statusLine)
              + "\r\nContent-Type: text/plain"
@@ -39,16 +40,15 @@ namespace Net::Http {
              + std::string(body);
     }
 
-}
+} // namespace Net::Http
 
 constexpr size_t WRITE_BUF_SIZE = 4096;
 
-struct Client {
-    std::unique_ptr<Connection>   conn;
+struct Client : public Net::Poll::Descriptor {
+    std::unique_ptr<Connection>         conn;
     std::array<uint8_t, WRITE_BUF_SIZE> buffer{};
     size_t totalLen = 0;
     size_t offset   = 0;
-
 };
 
 int main() {
@@ -73,31 +73,30 @@ int main() {
         std::println("listen failed: {}", Net::toErrorString(r.error())); return 1;
     }
 
-    auto poll = Net::Poll::create();
+    auto poll = Net::Poll::Watcher::create();
     if (!poll) return 1;
-    Net::Poll& poller = poll.value();
+    Net::Poll::Watcher& poller = poll.value();
 
-    //  Sole owner of all Client objects
+    Net::Poll::Descriptor serverDesc{ server.getSocket() };
+
     std::unordered_map<int, std::unique_ptr<Client>> clients;
 
-    if (auto r = poller.add(server.getSocket(),
+    if (auto r = poller.add(&serverDesc,
             Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP); !r) {
         std::println("add server failed: {}", Net::toErrorString(r.error())); return 1;
     }
 
-    poller.onClose([&](void* ctx) {
-        auto* client = static_cast<Client*>(ctx);
-        int   fd     = client->conn->getSocket();
-       std::println("client fd={} disconnected", fd);
-        clients.erase(fd);
+    poller.onClose<Client>([&](Client* client) {
+        std::println("client fd={} disconnected", client->fd);
+        clients.erase(client->fd);
     });
 
     poller.onTimeout([&]() {
-        std::println("timeout");
+        std::println("timeout — checking stale connections");
     });
-    poller.onRead([&](void* ctx) {
 
-        if (!ctx) {
+    poller.onRead<Net::Poll::Descriptor>([&](Net::Poll::Descriptor* desc) {
+        if (desc->fd == serverDesc.fd) {
             auto conn = server.accept();
             if (!conn) {
                 std::println("accept error: {}", Net::toErrorString(conn.error()));
@@ -112,94 +111,87 @@ int main() {
                 return;
             }
 
-            auto  client = std::make_unique<Client>(std::move(conn.value()));
-            int fd= client->conn->getSocket();
+            auto client  = std::make_unique<Client>();
+            client->conn = std::move(conn.value());
+            client->fd   = client->conn->getSocket();
 
-            if (auto r = poller.add(fd,
-                    Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP,
-                    client.get()); !r) {
+            if (auto r = poller.add(client.get(),
+                    Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP); !r) {
                 std::println("add client failed: {}", Net::toErrorString(r.error()));
                 return;
             }
 
-            clients.emplace(fd, std::move(client)); // map takes ownership
+            clients.emplace(client->fd, std::move(client));
+            return;
+        }
 
-        } else {
-            Client* client = static_cast<Client*>(ctx);
+        auto* client = static_cast<Client*>(desc);
 
-            std::array<uint8_t, 4096> buf{};
-            auto received = client->conn->receive(buf.data(), buf.size());
+        std::array<uint8_t, 4096> buf{};
+        auto received = client->conn->receive(buf.data(), buf.size());
 
-            if (!received || received.value() == 0) {
-                poller.close(client->conn->getSocket(), ctx);
-                return;
-            }
+        if (!received || received.value() == 0) {
+            poller.close(client);
+            return;
+        }
 
-            std::string_view request(reinterpret_cast<char*>(buf.data()), received.value());
-            auto firstLine = request.substr(0, request.find("\r\n"));
-         //   std::println("fd={} >> {}", client->conn->getSocket(), firstLine);
+        std::string_view request(reinterpret_cast<char*>(buf.data()), received.value());
+        auto firstLine = request.substr(0, request.find("\r\n"));
 
-            std::string_view path   = "/";
-            auto pStart = firstLine.find(' ');
-            auto  pEnd   = firstLine.rfind(' ');
-            if (pStart != std::string_view::npos && pEnd != std::string_view::npos)
-                path = firstLine.substr(pStart + 1, pEnd - pStart - 1);
+        std::string_view path = "/";
+        auto pStart = firstLine.find(' ');
+        auto pEnd   = firstLine.rfind(' ');
+        if (pStart != std::string_view::npos && pEnd != std::string_view::npos)
+            path = firstLine.substr(pStart + 1, pEnd - pStart - 1);
 
-            auto response = (path == "/")
-                ? Net::Http::makeResponse(Net::Http::StatusCode::Ok, "Hello from Net!\n")
-                : Net::Http::makeResponse(Net::Http::StatusCode::NotFound, "404 Not Found\n");
+        auto response = (path == "/")
+            ? Net::Http::makeResponse(Net::Http::StatusCode::Ok,      "Hello from Net!\n")
+            : Net::Http::makeResponse(Net::Http::StatusCode::NotFound, "404 Not Found\n");
 
-            if (response.size() > WRITE_BUF_SIZE) {
-                std::println("response too large for fd={}", client->conn->getSocket());
-                poller.close(client->conn->getSocket(), ctx);
-                return;
-            }
+        if (response.size() > WRITE_BUF_SIZE) {
+            std::println("response too large for fd={}", client->fd);
+            poller.close(client);
+            return;
+        }
 
-            std::memcpy(client->buffer.data(), response.data(), response.size());
-            client->totalLen = response.size();
-            client->offset   = 0;
+        std::memcpy(client->buffer.data(), response.data(), response.size());
+        client->totalLen = response.size();
+        client->offset   = 0;
 
-            if (auto r = poller.mod(client->conn->getSocket(),
-                    Net::EpollEvent::EPOLLOUT | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP,
-                    client); !r) {
-              //  std::println("mod failed fd={}: {}", client->conn->getSocket(), Net::toErrorString(r.error()));
-                poller.close(client->conn->getSocket(), ctx);
-            }
+        if (auto r = poller.mod(client,
+                Net::EpollEvent::EPOLLOUT | Net::EpollEvent::EPOLLERR | Net::EpollEvent::EPOLLHUP); !r) {
+            std::println("mod failed fd={}: {}", client->fd, Net::toErrorString(r.error()));
+            poller.close(client);
         }
     });
 
-    poller.onWrite([&](void* ctx) {
-        if (!ctx) return;
-        Client* client = static_cast<Client*>(ctx);
-
+    poller.onWrite<Client>([&](Client* client) {
         auto sent = client->conn->send(
             client->buffer.data() + client->offset,
-            client->totalLen - client->offset
+            client->totalLen      - client->offset
         );
 
         if (!sent) {
-            std::println("send error fd={}: {}", client->conn->getSocket(), Net::toErrorString(sent.error()));
-            poller.close(client->conn->getSocket(), ctx);
+            std::println("send error fd={}: {}", client->fd, Net::toErrorString(sent.error()));
+            poller.close(client);
             return;
         }
 
         client->offset += sent.value();
 
         if (client->offset >= client->totalLen)
-            poller.close(client->conn->getSocket(), ctx);
+            poller.close(client);
     });
 
-    poller.onError([&](void* ctx,Net::Error err) {
-        if (!ctx) return;
-        std::println("error on fd={}. error={}", static_cast<Client*>(ctx)->conn->getSocket(), Net::toErrorString(err));
-        poller.close(static_cast<Client*>(ctx)->conn->getSocket(), ctx);
+    poller.onError<Client>([&](Client* client, Net::Error err) {
+        std::println("error on fd={}: {}", client->fd, Net::toErrorString(err));
+        poller.close(client);
     });
 
     std::println("Listening on :8080");
 
-    auto re = poller.watch();
-    if (!re) {
-        std::println("watch error: {}", Net::toErrorString(re.error()));
+    if (auto r = poller.watch(); !r) {
+        std::println("watch error: {}", Net::toErrorString(r.error()));
         return 1;
     }
 

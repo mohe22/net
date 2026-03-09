@@ -212,47 +212,94 @@ Both `Tcp` and `Udp` are non-copyable but movable.
 
 ### `epoll.hpp` / `epoll.cpp`
 
-`Poll` is a thin, non-owning epoll-based event loop. Linux only.
+`Net::Poll::Watcher` is a thin, non-owning epoll-based event loop. Linux only.
 
-Callbacks are registered once and fired on every matching event. All callbacks receive a `void* ctx`
-— the same pointer passed to `add()` or `mod()`. **Poll never owns or frees ctx.** The caller is
-fully responsible for its lifetime.
+Callbacks are registered once and fired on every matching event. All callbacks are **typed on your
+concrete context type** — you never deal with `void*` or casts. The cast is hidden entirely.
+
+---
+
+
+
+#### Context ownership — `Descriptor`
+
+`Net::Poll::Descriptor` is the base struct every user defined context must publicly inherit from:
+```cpp
+struct Client : public Net::Poll::Descriptor {
+    std::unique_ptr<Connection> conn;
+    std::string name;
+};
+```
+
+It carries a single member — `SocketHandle fd` — which you set before calling `add()`:
+```cpp
+auto client  = std::make_unique<Client>();
+client->conn = std::move(conn.value());
+client->fd   = client->conn->getSocket();  // ← required before add()
+
+poller.add(client.get(), Net::EpollEvent::EPOLLIN);
+```
+
+The `Watcher` stores your pointer directly in epoll's `data.ptr` and recovers it on every
+event, no extra allocation, no overhead.
+
+**Ownership:** `Watcher` never owns or frees any pointer you pass in. You allocate it,
+you free it — always inside `onClose`.
+
+**Safety:** The `Watchable<T>` concept checks at compile time that `T` publicly inherits
+`Descriptor`. Passing an unrelated type fails immediately with a clear error — nothing
+unsafe ever reaches runtime:
+```cpp
+struct Random { int fd; };           // does not inherit Descriptor
+poller.add(new Random{}, EPOLLIN);   //  compile error: Watchable<Random> not satisfied
+
+struct Client : public Net::Poll::Descriptor { ... };
+poller.add(new Client{}, EPOLLIN);   // will work
+```
+
+---
 
 #### Trigger modes
 
-Level-triggered (default): `epoll_wait` keeps firing as long as data is available. Safe to read
-partially — you will be notified again next iteration.
+**Level-triggered** (default): `epoll_wait` keeps firing as long as data is available. Safe to
+read partially — you will be notified again next iteration.
 
-Edge-triggered (`EPOLLET`): `epoll_wait` fires once when new data arrives. You must drain the
+**Edge-triggered** (`EPOLLET`): `epoll_wait` fires once when new data arrives. You must drain the
 socket completely in one go or you will miss events until the next write.
 
-
+---
 
 #### Methods
 
 | Method | Description |
 |---|---|
-| `Poll::create(timeout)` | Factory. `timeout` in ms: `0` = non-blocking, `-1` = block forever, `>0` = fire `onTimeout` after N ms. |
-| `add(fd, events, ctx)` | Registers fd. ctx is stored as-is — Poll does not own it. |
-| `mod(fd, events, ctx)` | Updates events or ctx for an already-registered fd. |
-| `close(fd, ctx)` | Removes fd from epoll then fires `onClose`. Always use this to disconnect — never remove an fd without going through here. |
-| `watch()` | Blocks forever dispatching callbacks. `epoll_wait` errors are logged and retried. |
+| `Watcher::create(timeout)` | Factory. `timeout` in ms: `0` = non-blocking, `-1` = block forever, `>0` = fire `onTimeout` after N ms. |
+| `add<T>(desc, events)` | Registers a `Descriptor*`. `Watcher` never owns or frees it. |
+| `mod<T>(desc, events)` | Replaces the event mask for an already-registered descriptor. Must re-supply `desc` — `MOD` overwrites the entire registration. |
+| `close<T>(desc)` | Removes descriptor from epoll then fires `onClose`. Always go through here — skipping it leaks the context. |
+| `watch()` | Blocks forever dispatching callbacks. `EINTR` is retried silently. Returns only on a fatal `epoll_wait` error. |
+
+---
 
 #### Callbacks
 
-| Callback | Fired when |
-|---|---|
-| `onRead(cb)` | fd has data ready to read (`EPOLLIN`) |
-| `onWrite(cb)` | fd is ready to write (`EPOLLOUT`) |
-| `onError(cb)` | `EPOLLERR` or `EPOLLHUP` — call `close(fd, ctx)` from here |
-| `onClose(cb)` | After `close()` removes the fd, or when the remote side shuts down (`EPOLLRDHUP`). **You must reclaim ctx here or it leaks.** |
-| `onTimeout(cb)` | `epoll_wait` timed out with no events — use for idle work, pinging clients, expiring stale connections |
+All callbacks are **templated on your concrete type T** — you receive `T*` directly.
+The `void* → Descriptor* → T*` cast chain is handled by the library and never appears in user code.
 
-### Example
+| Setter | Fired when |
+|---|---|
+| `onRead<T>(cb)` | fd has data ready to read (`EPOLLIN`) |
+| `onWrite<T>(cb)` | fd is ready to write (`EPOLLOUT`) |
+| `onError<T>(cb)` | `EPOLLERR` or `EPOLLHUP` — call `close()` from here |
+| `onClose<T>(cb)` | After `close()` removes the fd, or when the peer shuts down (`EPOLLRDHUP`). **You must reclaim your context here or it leaks.** |
+| `onTimeout(cb)` | `epoll_wait` timed out — use for idle work, heartbeats, expiring stale connections |
+
+
 ---
 
+#### Example
 
-#### Setup & Listen
+**Setup:**
 ```cpp
 auto server = Net::Servers::Tcp{};
 server.init(Net::IPType::IPv4);
@@ -262,43 +309,74 @@ server.setReuseAddress();
 server.bind("0.0.0.0", 8080);
 server.listen();
 
-auto poll = Net::Poll::create();
-Net::Poll& poller = poll.value();
-poller.add(server.getSocket(), EpollEvent::EPOLLIN | EpollEvent::EPOLLERR);
+auto poll = Net::Poll::Watcher::create(3000);
+Net::Poll::Watcher& poller = poll.value();
+
+// Server socket has no client state  bare Descriptor is enough
+Net::Poll::Descriptor serverDesc{ server.getSocket() };
+poller.add(&serverDesc, Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLERR);
 ```
 
-#### Client Lifetime
+**Context struct:**
 ```cpp
-// map is the sole owner — poller holds raw observer ptrs only
+struct Client : public Net::Poll::Descriptor {
+    std::unique_ptr<Connection>         conn;
+    std::array<uint8_t, 4096>           buffer{};
+    size_t totalLen = 0;
+    size_t offset   = 0;
+};
+
+// map is the sole owner — poller holds raw observer pointers only
 std::unordered_map<int, std::unique_ptr<Client>> clients;
-
-poller.onClose([&](void* ctx) {
-    clients.erase(static_cast<Client*>(ctx)->conn->getSocket());
-});
 ```
 
-#### Accept → Read → Write → Close Pipeline
+**Accept → Read → Write → Close pipeline:**
 ```cpp
-poller.onRead([&](void* ctx) {
-    if (!ctx) {
-        auto conn = server.accept();
-        // ctx == null → server fd, accept new client
-        auto client = std::make_unique<Client>(std::move(conn.value()));
-        poller.add(fd, EpollEvent::EPOLLIN, client.get());
-        clients.emplace(fd, std::move(client));
+poller.onClose<Client>([&](Client* client) {
+    clients.erase(client->fd);  // unique_ptr destructor frees Client
+});
+
+poller.onRead<Net::Poll::Descriptor>([&](Net::Poll::Descriptor* desc) {
+    if (desc->fd == serverDesc.fd) {
+        // server fd — accept new client
+        auto conn    = server.accept();
+        auto client  = std::make_unique<Client>();
+        client->conn = std::move(conn.value());
+        client->fd   = client->conn->getSocket();  // set Descriptor::fd
+        poller.add(client.get(), Net::EpollEvent::EPOLLIN);
+        clients.emplace(client->fd, std::move(client));
     } else {
-        // ctx != null → client fd, read request
-        // build response into client->buffer, then arm EPOLLOUT
-        poller.mod(fd, EpollEvent::EPOLLOUT, client);
+        // client fd — read request, arm EPOLLOUT to send response
+        auto* client = static_cast<Client*>(desc);
+        client->conn->receive(client->buffer.data(), client->buffer.size());
+        poller.mod(client, Net::EpollEvent::EPOLLOUT);
     }
 });
 
-poller.onWrite([&](void* ctx) {
-    // drain client->buffer, then close when offset >= totalLen
+poller.onWrite<Client>([&](Client* client) {
+    client->conn->send(client->buffer.data() + client->offset,
+                       client->totalLen      - client->offset);
+    client->offset += sent.value();
     if (client->offset >= client->totalLen)
-        poller.close(fd, ctx);
+        poller.close(client);  // triggers onClose → clients.erase → Client freed
 });
+
+poller.onError<Client>([&](Client* client, Net::Error err) {
+    std::println("error fd={}: {}", client->fd, Net::toErrorString(err));
+    poller.close(client);
+});
+
+poller.onTimeout([&]() {
+    // idle work — ping clients, expire stale connections, etc.
+});
+
+poller.watch();
 ```
+
+> **Note on `onRead` type parameter:** If a single `onRead` callback handles both the server
+> socket and client sockets, use `Net::Poll::Descriptor` as the type parameter and downcast
+> manually in the client branch with `static_cast<Client*>(desc)`. This is the only place
+> a cast appears in user code, and only because two distinct descriptor types share one callback.
 
 #### Run
 ```cpp

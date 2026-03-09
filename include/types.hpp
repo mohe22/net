@@ -248,10 +248,7 @@ namespace Net {
         lhs = lhs & rhs;
         return lhs;
     }
-    using CallBackEvent = std::function<void( void* ptr)>;
 
-
-    using ErrorCallBack = std::function<void( void* ptr,Net::Error)>;
 
 
     /**
