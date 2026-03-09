@@ -217,7 +217,7 @@ protected:
     virtual SocketHandle getSocket() const noexcept = 0;
 
 private:
-    bool isBlocking_ {false}; // tracks whether the socket is in blocking mode
+    bool isBlocking_ {true}; // tracks whether the socket is in blocking mode
 
     /**
      * @brief Low-level wrapper around @c ::setsockopt().

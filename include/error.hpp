@@ -40,7 +40,7 @@ enum class Error : uint8_t  {
     InvalidPort          = 5,  ///< Port was @c 0 or out of the valid range.
     InvalidAddressFamily = 6,  ///< @c ss_family / @c sin_family held an unrecognized value.
     InvalidSocketType    = 7,  ///< Unknown or unsupported @c SOCK_* type.
-    InvalidProtocol      = 30, ///< Protocol is incompatible with the requested operation.
+    InvalidProtocol      = 39, ///< Protocol is incompatible with the requested operation.
 
     // -------------------------------------------------------------------------
     // Bind
@@ -103,10 +103,23 @@ enum class Error : uint8_t  {
     WouldBlock           = 27, ///< Non-blocking socket has no data ready yet (@c EAGAIN / @c WSAEWOULDBLOCK).
 
     SocketOptionFailed   = 28, ///< Setting a socket option failed.
+
+    // -------------------------------------------------------------------------
     // Raw Socket
     // -------------------------------------------------------------------------
 
     RawSocketNotPermitted = 29, ///< Creating a raw socket requires root or Administrator privileges.
+
+    // -------------------------------------------------------------------------
+    // Epoll
+    // -------------------------------------------------------------------------
+
+    EpollCreationFailed     = 30, ///< Creating an epoll instance failed.
+    EpollInvalidFlags       = 31, ///< Invalid flags were passed to epoll.
+    EpollLimitReached       = 32, ///< The maximum number of file descriptors for epoll has been reached.
+    EpollEventFailed        = 33, ///< Adding, modifying, or removing an epoll event failed.
+    EpollInsufficientMemory = 34, ///< Insufficient memory to allocate an epoll event.
+
 };
 
 /**
@@ -173,8 +186,7 @@ inline Error getError() noexcept {
         case EPIPE:              return Error::BrokenPipe;
         case EMSGSIZE:           return Error::SendFailed;
         case ENOBUFS:            return Error::SendFailed;
-        case EWOULDBLOCK:
-            return Error::WouldBlock;
+        case EWOULDBLOCK:        return Error::WouldBlock;
         case EINPROGRESS:        return Error::WouldBlock;
         case EALREADY:           return Error::WouldBlock;
         case ENOTSOCK:           return Error::SocketNotInitialized;
@@ -182,6 +194,13 @@ inline Error getError() noexcept {
         case EOPNOTSUPP:         return Error::InvalidSocketType;
         case EACCES:
         case EPERM:              return Error::RawSocketNotPermitted;
+        case EMFILE:             return Error::EpollLimitReached;
+        case ENFILE:             return Error::EpollLimitReached;
+        case ENOSPC:             return Error::EpollLimitReached;
+        case ENOMEM:             return Error::EpollInsufficientMemory;
+        case EBADF:              return Error::EpollEventFailed;
+        case ENOENT:             return Error::EpollEventFailed;
+        case EEXIST:             return Error::EpollEventFailed;
         case ENETDOWN:
         case ENETUNREACH:
         case EHOSTUNREACH:       return Error::ConnectFailed;
@@ -215,37 +234,42 @@ inline Error getError() noexcept {
  */
 inline std::string_view toErrorString(Error error) noexcept {
     switch (error) {
-        case Error::Ok:                    return "Ok";
-        case Error::UnknownError:          return "Unknown error";
-        case Error::WSAStartupFailed:      return "Windows Winsock initialization failed";
-        case Error::SocketCreationFailed:  return "Failed to create socket";
-        case Error::SocketOptionFailed:    return "Setting a socket option failed";
-        case Error::InvalidIP:             return "Invalid IP address format";
-        case Error::InvalidPort:           return "Port out of range (0 or >65535)";
-        case Error::InvalidAddressFamily:  return "Unknown IP type or incompatible address family";
-        case Error::InvalidSocketType:     return "Unknown protocol type";
-        case Error::InvalidProtocol:       return "Invalid protocol for this operation";
-        case Error::BindFailed:            return "Failed to bind socket";
-        case Error::AddressAlreadyInUse:   return "Address already in use (port occupied)";
-        case Error::AddressNotAvailable:   return "Address not available on this machine";
-        case Error::ListenFailed:          return "Failed to listen on socket";
-        case Error::NotBound:              return "Cannot listen before binding";
-        case Error::AcceptFailed:          return "Failed to accept connection";
-        case Error::NotListening:          return "Cannot accept before listening";
-        case Error::ConnectFailed:         return "Failed to connect";
-        case Error::ConnectionRefused:     return "Connection refused by remote";
-        case Error::ConnectionTimeout:     return "Connection timed out";
-        case Error::AlreadyConnected:      return "Socket is already connected";
-        case Error::SendFailed:            return "Failed to send data";
-        case Error::ConnectionReset:       return "Connection forcibly closed by remote";
-        case Error::BrokenPipe:            return "Cannot write to a closed socket";
-        case Error::ReceiveFailed:         return "Failed to receive data";
-        case Error::ConnectionClosed:      return "Connection closed gracefully by remote";
-        case Error::CloseFailed:           return "Failed to close socket";
-        case Error::SocketNotInitialized:  return "Socket not initialized, call init() first";
-        case Error::SocketAlreadyClosed:   return "Socket is already closed";
-        case Error::WouldBlock:            return "Non-blocking socket has no data yet";
-        case Error::RawSocketNotPermitted: return "Raw socket requires root/admin privileges";
+        case Error::Ok:                      return "Ok";
+        case Error::UnknownError:            return "Unknown error";
+        case Error::WSAStartupFailed:        return "Windows Winsock initialization failed";
+        case Error::SocketCreationFailed:    return "Failed to create socket";
+        case Error::SocketOptionFailed:      return "Setting a socket option failed";
+        case Error::InvalidIP:               return "Invalid IP address format";
+        case Error::InvalidPort:             return "Port out of range (0 or >65535)";
+        case Error::InvalidAddressFamily:    return "Unknown IP type or incompatible address family";
+        case Error::InvalidSocketType:       return "Unknown protocol type";
+        case Error::InvalidProtocol:         return "Invalid protocol for this operation";
+        case Error::BindFailed:              return "Failed to bind socket";
+        case Error::AddressAlreadyInUse:     return "Address already in use (port occupied)";
+        case Error::AddressNotAvailable:     return "Address not available on this machine";
+        case Error::ListenFailed:            return "Failed to listen on socket";
+        case Error::NotBound:                return "Cannot listen before binding";
+        case Error::AcceptFailed:            return "Failed to accept connection";
+        case Error::NotListening:            return "Cannot accept before listening";
+        case Error::ConnectFailed:           return "Failed to connect";
+        case Error::ConnectionRefused:       return "Connection refused by remote";
+        case Error::ConnectionTimeout:       return "Connection timed out";
+        case Error::AlreadyConnected:        return "Socket is already connected";
+        case Error::SendFailed:              return "Failed to send data";
+        case Error::ConnectionReset:         return "Connection forcibly closed by remote";
+        case Error::BrokenPipe:              return "Cannot write to a closed socket";
+        case Error::ReceiveFailed:           return "Failed to receive data";
+        case Error::ConnectionClosed:        return "Connection closed gracefully by remote";
+        case Error::CloseFailed:             return "Failed to close socket";
+        case Error::SocketNotInitialized:    return "Socket not initialized, call init() first";
+        case Error::SocketAlreadyClosed:     return "Socket is already closed";
+        case Error::WouldBlock:              return "Non-blocking socket has no data yet";
+        case Error::RawSocketNotPermitted:   return "Raw socket requires root/admin privileges";
+        case Error::EpollCreationFailed:     return "Failed to create epoll instance";
+        case Error::EpollInvalidFlags:       return "Invalid flags passed to epoll";
+        case Error::EpollLimitReached:       return "Epoll file descriptor limit reached";
+        case Error::EpollEventFailed:        return "Failed to add, modify, or remove epoll event";
+        case Error::EpollInsufficientMemory: return "Insufficient memory for epoll event";
     }
     return "Unrecognized error";
 }

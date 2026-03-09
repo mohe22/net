@@ -172,8 +172,8 @@ class Connection: public SocketOptions {
                     address_.getPort().value_or(0)};
         }
 
+        SocketHandle getSocket() const noexcept override { return socket_; }
 private:
-    SocketHandle getSocket() const noexcept override { return socket_; }
 
     /// The underlying platform socket handle. @c invaliedSocket when not connected.
     SocketHandle socket_{ invalidSocket };

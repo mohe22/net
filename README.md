@@ -18,12 +18,14 @@ net/
 │   ├── connection.hpp     # Connection class (owns a connected TCP socket)
 │   ├── socketOptions.hpp  # SocketOptions mixin (timeouts, buffers, keep-alive, etc.)
 │   ├── server.hpp         # SocketBase, Tcp, Udp server classes
+│   ├── epoll.hpp          # Poll class (epoll-based event loop, Linux only)
 │   └── net.hpp            # Top-level convenience include
 └── src/
     ├── address.cpp        # Address factory implementations
     ├── connection.cpp     # Connection send/receive/close
     ├── socketOptions.cpp  # setOption / setTimeoutOption implementations
     ├── server.cpp         # SocketBase init/bind, Tcp listen/accept, Udp sendTo/receiveFrom
+    ├── epoll.cpp          # Poll event loop implementation
     ├── test-udp.cpp       # UDP usage example
     └── test_tcp.cpp       # TCP usage example
 ```
@@ -47,6 +49,10 @@ net/
 │         types.hpp / error.hpp       │  ← Result<T>, Error, IPType, Protocol
 ├─────────────────────────────────────┤
 │         platform.hpp                │  ← SocketHandle, ssize, getLastError(), platformClose()
+└─────────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│         Poll (epoll.hpp)            │  ← Event loop (Linux only, sits alongside the above)
 └─────────────────────────────────────┘
 ```
 
@@ -170,9 +176,8 @@ Inherits `SocketOptions` so timeouts and all other options are available directl
 | `receive(data, size)` | `::recv()` — returns bytes received or an error. |
 | `close()` | Closes the socket explicitly. Destructor closes it too if not already done. |
 
-
-
 ---
+
 ### `server.hpp` / `server.cpp`
 
 #### `SocketBase : SocketOptions`
@@ -202,6 +207,80 @@ methods are available on every server socket.
 | `receiveFrom(buffer, length)` | Reads a datagram and returns `{bytes, senderAddress}`. |
 
 Both `Tcp` and `Udp` are non-copyable but movable.
+
+---
+
+### `epoll.hpp` / `epoll.cpp`
+
+`Poll` is a thin, non-owning epoll-based event loop. Linux only.
+
+Callbacks are registered once and fired on every matching event. All callbacks receive a `void* ctx`
+— the same pointer passed to `add()` or `mod()`. **Poll never owns or frees ctx.** The caller is
+fully responsible for its lifetime.
+
+#### Trigger modes
+
+Level-triggered (default): `epoll_wait` keeps firing as long as data is available. Safe to read
+partially — you will be notified again next iteration.
+
+Edge-triggered (`EPOLLET`): `epoll_wait` fires once when new data arrives. You must drain the
+socket completely in one go or you will miss events until the next write.
+
+
+
+#### Methods
+
+| Method | Description |
+|---|---|
+| `Poll::create(timeout)` | Factory. `timeout` in ms: `0` = non-blocking, `-1` = block forever, `>0` = fire `onTimeout` after N ms. |
+| `add(fd, events, ctx)` | Registers fd. ctx is stored as-is — Poll does not own it. |
+| `mod(fd, events, ctx)` | Updates events or ctx for an already-registered fd. |
+| `close(fd, ctx)` | Removes fd from epoll then fires `onClose`. Always use this to disconnect — never remove an fd without going through here. |
+| `watch()` | Blocks forever dispatching callbacks. `epoll_wait` errors are logged and retried. |
+
+#### Callbacks
+
+| Callback | Fired when |
+|---|---|
+| `onRead(cb)` | fd has data ready to read (`EPOLLIN`) |
+| `onWrite(cb)` | fd is ready to write (`EPOLLOUT`) |
+| `onError(cb)` | `EPOLLERR` or `EPOLLHUP` — call `close(fd, ctx)` from here |
+| `onClose(cb)` | After `close()` removes the fd, or when the remote side shuts down (`EPOLLRDHUP`). **You must reclaim ctx here or it leaks.** |
+| `onTimeout(cb)` | `epoll_wait` timed out with no events — use for idle work, pinging clients, expiring stale connections |
+
+#### Example
+
+```cpp
+auto poll = Net::Poll::create(3000);
+Net::Poll& poller = poll.value();
+
+poller.add(server.getSocket(), Net::EpollEvent::EPOLLIN);
+
+poller.onClose([](void* ctx) {
+    std::unique_ptr<Client>{ static_cast<Client*>(ctx) };  // free on disconnect
+});
+
+poller.onRead([&](void* ctx) {
+    if (!ctx) {
+        // null ctx = server fd, no context was passed
+        auto conn = server.accept();
+        auto client = std::make_unique<Client>(std::move(conn.value()));
+        poller.add(client->fd(),
+            Net::EpollEvent::EPOLLIN | Net::EpollEvent::EPOLLRDHUP,
+            client.get());
+        client.release();
+    } else {
+        auto* client = static_cast<Client*>(ctx);
+        // read from client->conn ...
+    }
+});
+
+poller.onTimeout([]() {
+    // runs every 3000ms with no events
+});
+
+poller.watch();
+```
 
 ---
 
@@ -246,3 +325,4 @@ while (true) {
 
 - C++23
 - Windows (tested) / Linux (not tested for the timeout)
+- `epoll.hpp` / `epoll.cpp` — Linux only

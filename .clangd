@@ -1,0 +1,12 @@
+CompileFlags:
+  Add:
+    - "-std=c++26"
+  Compiler: clang++
+
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+
+Diagnostics:
+  UnusedIncludes: Strict

@@ -1,5 +1,5 @@
 #include "../include/server.hpp"
-#include "../include/client.hpp"
+#include "../include/connection.hpp"
 #include "../include/types.hpp"
 #include <print>
 int main() {
@@ -29,7 +29,7 @@ int main() {
         .and_then([&]() -> Net::Result<void> {
             uint8_t buffer[1204];
             while (true) {
-                Net::Result<std::unique_ptr<Net::Client>> client = server.accept();
+                Net::Result<std::unique_ptr<Net::Connection>> client = server.accept();
                 if (!client) {
 
                     std::println("[DEBUG] Accept error: {}", Net::toErrorString(client.error()));
