@@ -281,6 +281,7 @@ poller.onClose([&](void* ctx) {
 ```cpp
 poller.onRead([&](void* ctx) {
     if (!ctx) {
+        auto conn = server.accept();
         // ctx == null → server fd, accept new client
         auto client = std::make_unique<Client>(std::move(conn.value()));
         poller.add(fd, EpollEvent::EPOLLIN, client.get());
