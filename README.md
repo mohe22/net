@@ -198,6 +198,8 @@ methods are available on every server socket.
 | `accept()` | Blocks until a client connects. Returns `unique_ptr<Connection>`. |
 | `connect(ip, type, port)` | Connects to a remote endpoint. |
 | `close()` | Explicit close. |
+| `sendAll(span, totalBytes)` | Loops over `send()` until exactly `totalBytes` are sent. Returns `Error::BufferTooSmall` if the span is too small. |
+| `receiveAll(span, totalBytes)` | Loops over `receive()` until exactly `totalBytes` are received. Returns `Error::BufferTooSmall` if the span is too small. |
 
 #### `Udp : SocketBase`
 

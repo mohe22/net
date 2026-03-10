@@ -87,38 +87,39 @@ enum class Error : uint8_t  {
 
     ReceiveFailed        = 22, ///< @c recv() failed for a reason not covered below.
     ConnectionClosed     = 23, ///< The remote peer closed the connection gracefully (@c recv() returned @c 0).
+    BufferTooSmall       = 24, ///< The buffer provided is too small to hold the requested data.
 
     // -------------------------------------------------------------------------
     // Close
     // -------------------------------------------------------------------------
 
-    CloseFailed          = 24, ///< @c close() / @c closesocket() failed.
+    CloseFailed          = 25, ///< @c close() / @c closesocket() failed.
 
     // -------------------------------------------------------------------------
     // Socket State
     // -------------------------------------------------------------------------
 
-    SocketNotInitialized = 25, ///< An operation was attempted before the socket was initialized.
-    SocketAlreadyClosed  = 26, ///< An operation was attempted after the socket was closed.
-    WouldBlock           = 27, ///< Non-blocking socket has no data ready yet (@c EAGAIN / @c WSAEWOULDBLOCK).
+    SocketNotInitialized = 26, ///< An operation was attempted before the socket was initialized.
+    SocketAlreadyClosed  = 27, ///< An operation was attempted after the socket was closed.
+    WouldBlock           = 28, ///< Non-blocking socket has no data ready yet (@c EAGAIN / @c WSAEWOULDBLOCK).
 
-    SocketOptionFailed   = 28, ///< Setting a socket option failed.
+    SocketOptionFailed   = 29, ///< Setting a socket option failed.
 
     // -------------------------------------------------------------------------
     // Raw Socket
     // -------------------------------------------------------------------------
 
-    RawSocketNotPermitted = 29, ///< Creating a raw socket requires root or Administrator privileges.
+    RawSocketNotPermitted = 30, ///< Creating a raw socket requires root or Administrator privileges.
 
     // -------------------------------------------------------------------------
     // Epoll
     // -------------------------------------------------------------------------
 
-    EpollCreationFailed     = 30, ///< Creating an epoll instance failed.
-    EpollInvalidFlags       = 31, ///< Invalid flags were passed to epoll.
-    EpollLimitReached       = 32, ///< The maximum number of file descriptors for epoll has been reached.
-    EpollEventFailed        = 33, ///< Adding, modifying, or removing an epoll event failed.
-    EpollInsufficientMemory = 34, ///< Insufficient memory to allocate an epoll event.
+    EpollCreationFailed     = 31, ///< Creating an epoll instance failed.
+    EpollInvalidFlags       = 32, ///< Invalid flags were passed to epoll.
+    EpollLimitReached       = 33, ///< The maximum number of file descriptors for epoll has been reached.
+    EpollEventFailed        = 34, ///< Adding, modifying, or removing an epoll event failed.
+    EpollInsufficientMemory = 35, ///< Insufficient memory to allocate an epoll event.
 
 };
 
@@ -251,6 +252,7 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::NotBound:                return "Cannot listen before binding";
         case Error::AcceptFailed:            return "Failed to accept connection";
         case Error::NotListening:            return "Cannot accept before listening";
+        case Error::BufferTooSmall:          return "Buffer too small to hold data";
         case Error::ConnectFailed:           return "Failed to connect";
         case Error::ConnectionRefused:       return "Connection refused by remote";
         case Error::ConnectionTimeout:       return "Connection timed out";

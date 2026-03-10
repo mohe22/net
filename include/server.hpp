@@ -228,7 +228,11 @@ namespace Net {
          * or source address — no @c connect() or @c accept() step is required.
          *
          * Non-copyable. Movable via the default move constructor and assignment.
+         *
+         * TODO: implment the sendToAll and receiveFromAll methods
+         *
          */
+
         class Udp : public SocketBase {
         public:
 

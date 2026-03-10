@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <expected>
-#include <functional>
 #include "error.hpp"
 #include "platform.hpp"
 #define TCP_NODELAY 1

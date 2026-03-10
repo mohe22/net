@@ -1,7 +1,11 @@
 #pragma once
+#include "platform.hpp"
 #include "types.hpp"
 #include "address.hpp"
 #include "socketOptions.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <span>
 namespace Net {
 
 /**
@@ -122,7 +126,7 @@ class Connection: public SocketOptions {
          *
          * @throws Nothing.
          */
-        Result<ssize> send(const void *data, size_t size);
+        Result<ssize> send(const void *data, size_t size) noexcept;
 
         /**
          * @brief Receives raw data from the remote peer into a caller-supplied buffer.
@@ -143,7 +147,59 @@ class Connection: public SocketOptions {
          *
          * @throws Nothing.
          */
-        Result<ssize> receive(void *data, size_t size);
+        Result<ssize> receive(void *data, size_t size) noexcept;
+
+
+        /**
+         * @brief Receives exactly @p totalBytes bytes from the remote peer into a
+         *        caller-supplied buffer, looping over @c receive() until all bytes
+         *        have arrived.
+         *
+         * Unlike @c receive(), which may return fewer bytes than requested in a
+         * single call, @c receiveAll() blocks until the full @p totalBytes have
+         * been read or an error occurs.
+         *
+         * @param data        A writable span over the destination buffer.
+         *                    Must be at least @p totalBytes bytes in size.
+         * @param totalBytes  The exact number of bytes to receive.
+         *
+         * @return On success, a @c Result<ssize> holding @p totalBytes.
+         * @return @c std::unexpected{Error::BufferTooSmall} if @c data.size() is
+         *         less than @p totalBytes — no I/O is performed.
+         * @return @c std::unexpected{Error::ConnectionClosed} if the peer closes
+         *         the connection before all @p totalBytes have been delivered.
+         * @return @c std::unexpected with the platform error (from @c getError())
+         *         if any underlying @c ::recv() call fails.
+         *
+         * @throws Nothing — marked @c noexcept.
+         */
+        Result<ssize> receiveAll(std::span<uint8_t> data, size_t totalBytes) noexcept;
+
+        /**
+         * @brief Sends exactly @p totalBytes bytes to the remote peer from a
+         *        caller-supplied buffer, looping over @c send() until all bytes
+         *        have been written.
+         *
+         * Unlike @c send(), which may transmit fewer bytes than requested in a
+         * single call, @c sendAll() blocks until the full @p totalBytes have
+         * been sent or an error occurs.
+         *
+         * @param data        A read-only span over the source buffer.
+         *                    Must be at least @p totalBytes bytes in size.
+         * @param totalBytes  The exact number of bytes to send.
+         *
+         * @return On success, a @c Result<ssize> holding @p totalBytes.
+         * @return @c std::unexpected{Error::BufferTooSmall} if @c data.size() is
+         *         less than @p totalBytes — no I/O is performed.
+         * @return @c std::unexpected{Error::ConnectionClosed} if the peer closes
+         *         the connection before all @p totalBytes have been transmitted.
+         * @return @c std::unexpected with the platform error (from @c getError())
+         *         if any underlying @c ::send() call fails.
+         *
+         * @throws Nothing — marked @c noexcept.
+         */
+        Result<ssize> sendAll(std::span<const uint8_t> data, size_t totalBytes) noexcept;
+
 
         /**
          * @brief Explicitly closes the socket.
@@ -159,7 +215,7 @@ class Connection: public SocketOptions {
          *
          * @throws Nothing.
          */
-        Result<void> close();
+        Result<void> close() noexcept;
 
         /*
             @brief Retrieves the remote IP address and port as strings.

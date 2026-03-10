@@ -1,4 +1,7 @@
 #include "../include/connection.hpp"
+#include <cstdint>
+#include <expected>
+#include <span>
 namespace Net {
 
 
@@ -44,7 +47,7 @@ namespace Net {
         return std::make_unique<Connection>(s, address);
     }
 
-    Result<ssize> Connection::receive(void *data, size_t size)
+    Result<ssize> Connection::receive(void *data, size_t size) noexcept
     {
         #ifdef _WIN32
                 ssize result = ::recv(socket_, static_cast<char *>(data), static_cast<int>(size), 0);
@@ -76,7 +79,7 @@ namespace Net {
         return result;
     }
 
-    Result<ssize> Connection::send(const void *data, size_t size){
+    Result<ssize> Connection::send(const void *data, size_t size) noexcept {
         #ifdef _WIN32
                 ssize result = ::send(socket_, static_cast<const char *>(data), static_cast<int>(size), 0);
         #else
@@ -106,7 +109,41 @@ namespace Net {
                 return result;
     }
 
-    Result<void> Connection::close() {
+
+    Result<ssize> Connection::sendAll(std::span<const uint8_t> buffer, size_t totalBytes) noexcept {
+        if(buffer.size() < totalBytes){
+            return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
+        }
+
+        ssize offset = 0;
+        while(offset < totalBytes){
+            auto result = send(
+                buffer.subspan(offset).data(),
+                totalBytes - offset
+            );
+            if(!result) return std::unexpected{result.error()};
+            offset += result.value();
+        }
+        return offset;
+    }
+    Result<ssize> Connection::receiveAll(std::span<uint8_t> data,size_t totalBytes) noexcept {
+        if(data.size() < totalBytes){
+            return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
+        }
+
+        ssize offset = 0;
+        while(offset < totalBytes){
+            auto result = receive(
+                data.subspan(offset).data(),
+                totalBytes - offset
+            );
+            if(!result) return std::unexpected{result.error()};
+            offset += result.value();
+        }
+        return offset;
+    }
+
+    Result<void> Connection::close()  noexcept {
         if (socket_ == invalidSocket)
             return std::unexpected{Net::getError()};
         platformClose(socket_);
