@@ -163,7 +163,7 @@ class Connection: public SocketOptions {
          *                    Must be at least @p totalBytes bytes in size.
          * @param totalBytes  The exact number of bytes to receive.
          *
-         * @return On success, a @c Result<ssize> holding @p totalBytes.
+         * @return On success, a @c Result<void>
          * @return @c std::unexpected{Error::BufferTooSmall} if @c data.size() is
          *         less than @p totalBytes — no I/O is performed.
          * @return @c std::unexpected{Error::ConnectionClosed} if the peer closes
@@ -173,7 +173,7 @@ class Connection: public SocketOptions {
          *
          * @throws Nothing — marked @c noexcept.
          */
-        Result<ssize> receiveAll(std::span<uint8_t> data, size_t totalBytes) noexcept;
+        Result<void> receiveAll(std::span<uint8_t> data, size_t totalBytes) noexcept;
 
         /**
          * @brief Sends exactly @p totalBytes bytes to the remote peer from a
@@ -188,7 +188,7 @@ class Connection: public SocketOptions {
          *                    Must be at least @p totalBytes bytes in size.
          * @param totalBytes  The exact number of bytes to send.
          *
-         * @return On success, a @c Result<ssize> holding @p totalBytes.
+         * @return On success, a @c Result<void>.
          * @return @c std::unexpected{Error::BufferTooSmall} if @c data.size() is
          *         less than @p totalBytes — no I/O is performed.
          * @return @c std::unexpected{Error::ConnectionClosed} if the peer closes
@@ -198,7 +198,7 @@ class Connection: public SocketOptions {
          *
          * @throws Nothing — marked @c noexcept.
          */
-        Result<ssize> sendAll(std::span<const uint8_t> data, size_t totalBytes) noexcept;
+        Result<void> sendAll(std::span<const uint8_t> data, size_t totalBytes) noexcept;
 
 
         /**

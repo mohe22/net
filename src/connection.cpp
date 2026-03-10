@@ -110,7 +110,9 @@ namespace Net {
     }
 
 
-    Result<ssize> Connection::sendAll(std::span<const uint8_t> buffer, size_t totalBytes) noexcept {
+    Result<void> Connection::sendAll(std::span<const uint8_t> buffer, size_t totalBytes) noexcept {
+
+        if(totalBytes == 0) return {};
         if(buffer.size() < totalBytes){
             return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
         }
@@ -124,9 +126,11 @@ namespace Net {
             if(!result) return std::unexpected{result.error()};
             offset += result.value();
         }
-        return offset;
+        return {};
     }
-    Result<ssize> Connection::receiveAll(std::span<uint8_t> data,size_t totalBytes) noexcept {
+    Result<void> Connection::receiveAll(std::span<uint8_t> data,size_t totalBytes) noexcept {
+        if(totalBytes == 0) return {};
+
         if(data.size() < totalBytes){
             return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
         }
@@ -140,7 +144,7 @@ namespace Net {
             if(!result) return std::unexpected{result.error()};
             offset += result.value();
         }
-        return offset;
+        return {};
     }
 
     Result<void> Connection::close()  noexcept {
