@@ -19,7 +19,7 @@ Result<Watcher> Watcher::create(int timeout) noexcept {
 Result<void> Watcher::addImpl(Descriptor* desc, Net::EpollEvent events) noexcept {
     struct epoll_event ev{};
     ev.events   = static_cast<uint32_t>(events);
-    ev.data.ptr = desc;  // store the Descriptor* directly — fd lives inside it
+    ev.data.ptr = desc;  // store the Descriptor* directly fd lives inside it
     if (epoll_ctl(efd_, static_cast<int>(Net::EpollOptions::Add), desc->fd, &ev) == -1)
         return std::unexpected{getError()};
     return {};

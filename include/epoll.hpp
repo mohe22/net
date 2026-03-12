@@ -235,7 +235,7 @@ public:
     ~Watcher();
     Watcher(const Watcher&)            = delete;
     Watcher& operator=(const Watcher&) = delete;
-    Watcher(Watcher&&)            noexcept;
+    Watcher(Watcher&&)    noexcept;
     Watcher& operator=(Watcher&&) noexcept;
 
 private:
@@ -243,23 +243,24 @@ private:
     /// keeping system headers and implementation details out of the public header.
     Result<void> addImpl  (Descriptor* desc, Net::EpollEvent events) noexcept;
     Result<void> modImpl  (Descriptor* desc, Net::EpollEvent events) noexcept;
-    void         closeImpl(Descriptor* desc)                         noexcept;
+    void   closeImpl(Descriptor* desc)      noexcept;
 
     struct epoll_event ev_{}, events_[MAX_EVENTS];
-    int efd_    {-1};
+    int efd_ {-1};
     int timeout_{-1};
 
     /// Internal storage is always void*-based — T is erased at this boundary.
     /// The templated setters above wrap the user's typed callback in a lambda
     /// that performs the cast, then assign it here. The cast logic never
     /// escapes into user code.
-    std::function<void(void*)>             onRead_   {nullptr};
-    std::function<void(void*)>             onWrite_  {nullptr};
+    std::function<void(void*)>  onRead_   {nullptr};
+    std::function<void(void*)>  onWrite_  {nullptr};
     std::function<void(void*, Net::Error)> onError_  {nullptr};
-    std::function<void(void*)>             onClose_  {nullptr};
-    std::function<void()>                  onTimeout_{nullptr};
+    std::function<void(void*)>  onClose_  {nullptr};
+    std::function<void()>  onTimeout_{nullptr};
 
-    explicit Watcher(int fd, int timeout) noexcept;
+    Watcher(int fd, int timeout) noexcept;
+
 };
 
 #endif
