@@ -120,7 +120,7 @@ enum class Error : uint8_t  {
     EpollLimitReached       = 33, ///< The maximum number of file descriptors for epoll has been reached.
     EpollEventFailed        = 34, ///< Adding, modifying, or removing an epoll event failed.
     EpollInsufficientMemory = 35, ///< Insufficient memory to allocate an epoll event.
-
+    EpollInvalidDescriptor  = 36, ///< The file descriptor passed to epoll is invalid.
 };
 
 /**
@@ -272,7 +272,8 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::EpollLimitReached:       return "Epoll file descriptor limit reached";
         case Error::EpollEventFailed:        return "Failed to add, modify, or remove epoll event";
         case Error::EpollInsufficientMemory: return "Insufficient memory for epoll event";
-    }
+        case Error::EpollInvalidDescriptor:
+            return "Invalid file descriptor passed to epoll. Ensure your object inherits from Net::Poll::Descriptor before using it.";    }
     return "Unrecognized error";
 }
 

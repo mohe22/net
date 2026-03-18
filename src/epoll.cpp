@@ -17,6 +17,7 @@ Result<Watcher> Watcher::create(int timeout) noexcept {
 
 
 Result<void> Watcher::addImpl(Descriptor* desc, Net::EpollEvent events) noexcept {
+    if(!desc || desc->fd == 0) return std::unexpected{Error::EpollInvalidDescriptor};
     struct epoll_event ev{};
     ev.events   = static_cast<uint32_t>(events);
     ev.data.ptr = desc;  // store the Descriptor* directly fd lives inside it
@@ -26,6 +27,8 @@ Result<void> Watcher::addImpl(Descriptor* desc, Net::EpollEvent events) noexcept
 }
 
 Result<void> Watcher::modImpl(Descriptor* desc, Net::EpollEvent events) noexcept {
+
+    if(!desc || desc->fd == 0) return std::unexpected{Error::EpollInvalidDescriptor};
     struct epoll_event ev{};
     ev.events   = static_cast<uint32_t>(events);
     ev.data.ptr = desc;
