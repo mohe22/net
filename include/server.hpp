@@ -430,7 +430,7 @@ namespace Net {
 
 
             ~Tcp() noexcept;
-            Tcp() noexcept ;
+            Tcp() noexcept = default;
 
             /**
                 * @brief Returns @c SOCK_STREAM — the socket type for TCP.
