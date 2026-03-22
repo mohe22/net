@@ -190,8 +190,36 @@ methods are available on every server socket.
 - **`closeSocket()`** — calls `platformClose()` and resets the handle to `invalidSocket`.
 - **Destructor** — calls `closeSocket()` and `WSACleanup()` on Windows.
 
-#### `Tcp : SocketBase`
-
+### Pause / Resume (`SocketBase`)
+ 
+`SocketBase` has built-in pause/resume support for plain accept loops (without epoll).
+State is tracked via `std::atomic<bool>` — no mutex or condition variable needed.
+ 
+| Method | Description |
+|---|---|
+| `pause()` | Sets `isRunning_` to `false` and notifies all waiters. |
+| `resume()` | Sets `isRunning_` to `true` and notifies all waiters. |
+| `isRunning()` | Returns `true` if the server is active. |
+| `waitUntilRunning()` | Blocks the calling thread until `resume()` is called. Uses `atomic::wait` — no busy spin. |
+ 
+Usage in a plain accept loop:
+```cpp
+while (true) {
+    if (!server.isRunning())
+        server.waitUntilRunning();  // blocks until resume()
+ 
+    auto client = server.accept();
+    // ...
+}
+```
+ 
+> **Note:** When using the epoll `Watcher`, pause/resume is controlled via `Watcher::pause()` /
+> `Watcher::resume()` instead — see the epoll section below.
+ 
+ 
+ 
+ 
+ 
 | Method | Description |
 |---|---|
 | `listen(backlog = 10)` | Marks the socket passive via `::listen()`. |
@@ -218,7 +246,36 @@ Both `Tcp` and `Udp` are non-copyable but movable.
 
 Callbacks are registered once and fired on every matching event. All callbacks are **typed on your
 concrete context type** — you never deal with `void*` or casts. The cast is hidden entirely.
-
+---
+ 
+### Pause / Resume (`Watcher`)
+ 
+`Watcher` has independent pause/resume support for the epoll event loop. State is tracked via
+`std::atomic<bool>` — no mutex or condition variable needed.
+ 
+| Method | Description |
+|---|---|
+| `pause()` | Sets `paused_` to `true`. The event loop discards all pending events and blocks on the next iteration. |
+| `resume()` | Sets `paused_` to `false` and notifies all waiters. The event loop resumes normally. |
+| `isPaused()` | Returns `true` if the watcher is currently paused. |
+ 
+Usage from another thread:
+```cpp
+// pause the event loop for 5 seconds
+std::thread controller([&] {
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+    poller.pause();
+ 
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    poller.resume();
+});
+controller.detach();
+ 
+poller.watch();  // blocks — respects pause/resume
+```
+ 
+> **Note:** `SocketBase::pause()` and `Watcher::pause()` are independent. When using
+ 
 ---
 
 
