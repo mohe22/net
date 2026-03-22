@@ -108,7 +108,10 @@ Watcher::~Watcher() {
 }
 
 Watcher::Watcher(Watcher&& other) noexcept
-    : ev_{other.ev_}, efd_{other.efd_}, timeout_{other.timeout_}
+    : ev_{other.ev_}
+    , efd_{other.efd_}
+    , timeout_{other.timeout_}
+    , paused_{other.paused_.load()}
 {
     std::copy_n(other.events_, MAX_EVENTS, events_);
     other.efd_ = -1;
@@ -120,6 +123,7 @@ Watcher& Watcher::operator=(Watcher&& other) noexcept {
         ev_      = other.ev_;
         efd_     = other.efd_;
         timeout_ = other.timeout_;
+        paused_.store(other.paused_.load());
         std::copy_n(other.events_, MAX_EVENTS, events_);
         other.efd_ = -1;
     }
