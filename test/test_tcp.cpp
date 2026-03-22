@@ -2,12 +2,25 @@
 #include "../include/connection.hpp"
 #include "../include/types.hpp"
 #include <print>
+#include <thread>
 int main() {
 
     Net::Servers::Tcp server;
+
+    std::thread controller([&]() {
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::println("pausing server...");
+        server.pause();   //  sets isRunning_ to false
+
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::println("resuming server...");
+        server.resume();  // sets isRunning_ to true
+    });
+    controller.detach();
     auto result = server.init(Net::IPType::IPv4)
+
         .and_then([&]() -> Net::Result<void> {
-            return server.bind("127.0.0.1", 8080);
+            return server.bind("127.0.0.1", 8083);
         })
         .and_then([&]() -> Net::Result<void> {
             return server.listen();
@@ -29,6 +42,13 @@ int main() {
         .and_then([&]() -> Net::Result<void> {
             uint8_t buffer[1204];
             while (true) {
+
+                if (!server.isRunning())  {
+                      std::println("server paused — waiting...");
+                      server.waitUntilRunning();
+                      std::println("server resumed");
+                  }
+
                 Net::Result<std::unique_ptr<Net::Connection>> client = server.accept();
                 if (!client) {
 
