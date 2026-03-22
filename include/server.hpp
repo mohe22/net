@@ -348,10 +348,7 @@ namespace Net {
                 */
             int socketType() const noexcept override { return SOCK_DGRAM; }
 
-            /// @brief Deleted — socket ownership cannot be shared.
-            Udp(const Udp&) = delete;
-            /// @brief Deleted — socket ownership cannot be shared.
-            Udp& operator=(const Udp&) = delete;
+
 
             /// @brief Default move constructor — transfers socket ownership.
             Udp(Udp&&) noexcept = default;
@@ -431,12 +428,9 @@ namespace Net {
                 */
             Result<void> close() const noexcept;
 
-            /**
-                * @brief Destructor — delegates cleanup to @c SocketBase::closeSocket().
-                *
-                * @throws Nothing — marked @c noexcept.
-                */
+
             ~Tcp() noexcept;
+            Tcp() noexcept ;
 
             /**
                 * @brief Returns @c SOCK_STREAM — the socket type for TCP.
@@ -447,13 +441,7 @@ namespace Net {
                 */
             int socketType() const noexcept override { return SOCK_STREAM; }
 
-            /// @brief Default constructor — socket is not initialized until @c init() is called.
-            Tcp() = default;
 
-            /// @brief Deleted — socket ownership cannot be shared.
-            Tcp(const Tcp&) = delete;
-            /// @brief Deleted — socket ownership cannot be shared.
-            Tcp& operator=(const Tcp&) = delete;
 
             /// @brief Default move constructor — transfers socket ownership.
             Tcp(Tcp&&) noexcept = default;
