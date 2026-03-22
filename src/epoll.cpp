@@ -46,6 +46,13 @@ void Watcher::closeImpl(Descriptor* desc) noexcept {
 
 Result<void> Watcher::watch() noexcept {
     for (;;) {
+
+        // check if paused and wait for resume
+        if (paused_.load())
+            paused_.wait(true);
+
+
+
         int nfds = epoll_wait(efd_, events_, MAX_EVENTS, timeout_);
 
         if (nfds == 0) {

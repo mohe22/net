@@ -1,6 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include <functional>
+#include <atomic>
 
 constexpr size_t MAX_EVENTS = 10;
 
@@ -101,6 +102,7 @@ public:
      *
      * @return Error describing why the loop exited.
      */
+
     Result<void> watch() noexcept;
 
     /**
@@ -232,8 +234,24 @@ public:
     /** @brief Returns the underlying epoll file descriptor. */
     int fd() const noexcept;
 
+    void pause() noexcept {
+        paused_.store(true);
+        paused_.notify_all();
+    }
+
+    void resume() noexcept {
+        paused_.store(false);
+        paused_.notify_all();
+    }
+
+    bool isPaused() const noexcept {
+        return paused_.load();
+    }
+
     ~Watcher();
     Watcher(const Watcher&)            = delete;
+    Watcher(int fd, int timeout) noexcept;
+
     Watcher& operator=(const Watcher&) = delete;
     Watcher(Watcher&&)    noexcept;
     Watcher& operator=(Watcher&&) noexcept;
@@ -249,6 +267,9 @@ private:
     int efd_ {-1};
     int timeout_{-1};
 
+    std::atomic<bool> paused_{true};
+
+
     /// Internal storage is always void*-based — T is erased at this boundary.
     /// The templated setters above wrap the user's typed callback in a lambda
     /// that performs the cast, then assign it here. The cast logic never
@@ -259,7 +280,7 @@ private:
     std::function<void(void*)>  onClose_  {nullptr};
     std::function<void()>  onTimeout_{nullptr};
 
-    Watcher(int fd, int timeout) noexcept;
+
 
 };
 
