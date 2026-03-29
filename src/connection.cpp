@@ -1,4 +1,6 @@
 #include "../include/connection.hpp"
+#include <sys/sendfile.h>
+
 #include <cstdint>
 #include <expected>
 #include <span>
@@ -127,6 +129,25 @@ namespace Net {
             offset += result.value();
         }
         return {};
+    }
+    Result<size_t> Connection::sendFile(int fileFd, off_t offset, size_t count) noexcept {
+        if (socket_ == invalidSocket)
+            return std::unexpected{getError()};
+
+        if (fileFd == -1)
+            return std::unexpected{Net::Error::InvalidSocket};
+
+
+        ssize_t sent = sendfile(socket_, fileFd, &offset, count);
+        if (sent == -1) {
+            auto err = Net::getError();
+            if (err == Net::Error::WouldBlock)
+                return std::unexpected{isBlocking() ? Net::Error::ConnectionTimeout
+                                                    : Net::Error::WouldBlock};
+            return std::unexpected{err};
+        }
+
+        return sent;
     }
     Result<void> Connection::receiveAll(std::span<uint8_t> data,size_t totalBytes) noexcept {
         if(totalBytes == 0) return {};

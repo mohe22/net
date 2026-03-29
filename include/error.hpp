@@ -31,6 +31,7 @@ enum class Error : uint8_t  {
 
     WSAStartupFailed     = 2,  ///< Windows only — @c WSAStartup() failed to initialize Winsock.
     SocketCreationFailed = 3,  ///< @c socket() returned an invalid handle.
+    InvalidSocket        = 37, ///< The socket handle is invalid.
 
     // -------------------------------------------------------------------------
     // Address / IP
@@ -238,6 +239,7 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::Ok:                      return "Ok";
         case Error::UnknownError:            return "Unknown error";
         case Error::WSAStartupFailed:        return "Windows Winsock initialization failed";
+        case Error::InvalidSocket:           return "Invalid socket handle";
         case Error::SocketCreationFailed:    return "Failed to create socket";
         case Error::SocketOptionFailed:      return "Setting a socket option failed";
         case Error::InvalidIP:               return "Invalid IP address format";

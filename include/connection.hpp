@@ -202,6 +202,41 @@ class Connection: public SocketOptions {
 
 
         /**
+         * @brief Sends @p count bytes from an open file descriptor to the remote peer
+         *        using the Linux @c sendfile(2) syscall, looping until all bytes have
+         *        been transferred or an error occurs.
+         *
+         * Unlike @c send(), @c sendFile() performs a zero-copy transfer entirely in
+         * kernel space — no data is bounced through a userspace buffer.  The caller
+         * retains full ownership of @p fileFd and is responsible for opening and
+         * closing it.
+         *
+         * @param fileFd   A valid, open file descriptor (opened with @c O_RDONLY or
+         *                 @c O_RDWR) whose contents are to be sent.
+         * @param offset   The byte offset within the file at which the transfer
+         *                 begins.  Updated by the kernel after each @c sendfile(2)
+         *                 call to reflect the next unread position.
+         * @param count    The exact number of bytes to transfer starting from
+         *                 @p offset.
+         *
+         * @return On success, a @c Result<size_t> holding the number of bytes
+         *         actually sent (may be less than @p count if the transfer was
+         *         interrupted by a @c sent==0 from the kernel).
+         * @return @c std::unexpected{Error::InvalidSocket} if the connection socket
+         *         or @p fileFd is invalid — no I/O is performed.
+         * @return @c std::unexpected{Error::ConnectionTimeout} if the socket is in
+         *         blocking mode and @c sendfile(2) returns @c EAGAIN / @c EWOULDBLOCK.
+         * @return @c std::unexpected{Error::WouldBlock} if the socket is in
+         *         non-blocking mode and @c sendfile(2) returns @c EAGAIN / @c EWOULDBLOCK.
+         * @return @c std::unexpected with the platform error (from @c getError()) if
+         *         any underlying @c sendfile(2) call fails for any other reason.
+         *
+         * @note Linux-only — relies on @c sendfile(2) from @c <sys/sendfile.h>.
+         * @throws Nothing — marked @c noexcept.
+         */
+        Result<size_t> sendFile(int fileFd, off_t offset, size_t count) noexcept;
+
+        /**
          * @brief Explicitly closes the socket.
          *
          * Calls @c platformClose() on @c socket_  and resets it to
