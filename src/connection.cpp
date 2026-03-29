@@ -130,7 +130,7 @@ namespace Net {
         }
         return {};
     }
-    Result<size_t> Connection::sendFile(int fileFd,  off_t& offset, size_t count) noexcept {
+    Result<size_t> Connection::sendFile(int fileFd, off_t& offset, size_t count) noexcept {
         if (socket_ == invalidSocket)
             return std::unexpected{getError()};
 
@@ -138,7 +138,7 @@ namespace Net {
             return std::unexpected{Net::Error::InvalidSocket};
 
 
-        ssize_t sent = sendfile(socket_, fileFd, offset, count);
+        ssize_t sent = sendfile(socket_, fileFd, &offset, count);
         if (sent == -1) {
             auto err = Net::getError();
             if (err == Net::Error::WouldBlock)
