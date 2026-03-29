@@ -214,8 +214,10 @@ class Connection: public SocketOptions {
          * @param fileFd   A valid, open file descriptor (opened with @c O_RDONLY or
          *                 @c O_RDWR) whose contents are to be sent.
          * @param offset   The byte offset within the file at which the transfer
-         *                 begins.  Updated by the kernel after each @c sendfile(2)
-         *                 call to reflect the next unread position.
+         *                 begins.  Passed by reference and advanced by the kernel
+         *                 after each @c sendfile(2) call — on return it holds the
+         *                 offset of the first byte not yet sent, allowing the caller
+         *                 to resume a partial transfer.
          * @param count    The exact number of bytes to transfer starting from
          *                 @p offset.
          *
@@ -234,7 +236,7 @@ class Connection: public SocketOptions {
          * @note Linux-only — relies on @c sendfile(2) from @c <sys/sendfile.h>.
          * @throws Nothing — marked @c noexcept.
          */
-        Result<size_t> sendFile(int fileFd, off_t offset, size_t count) noexcept;
+        Result<size_t> sendFile(int fileFd, off_t& offset, size_t count) noexcept;
 
         /**
          * @brief Explicitly closes the socket.
