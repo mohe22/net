@@ -103,9 +103,16 @@ Result<void> Watcher::watch() noexcept {
 
 int Watcher::fd() const noexcept { return efd_; }
 
+void Watcher::close() noexcept {
+    stop();
+    if(efd_ != -1){
+        ::close(efd_);
+        efd_ = -1;
+    }
+}
 
 Watcher::~Watcher() {
-    if (efd_ != -1) ::close(efd_);
+  stop();
 }
 
 Watcher::Watcher(Watcher&& other) noexcept

@@ -256,6 +256,11 @@ public:
         return paused_.load();
     }
 
+    /*
+     * close the epoll fd
+     */
+    void close() noexcept;
+
     ~Watcher();
     Watcher(const Watcher&)            = delete;
     Watcher(int fd, int timeout) noexcept;
