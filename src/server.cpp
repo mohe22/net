@@ -22,7 +22,6 @@ namespace Net::Servers {
                        if (handle == invalidSocket)
                            return std::unexpected{Net::getError()}; // OS tells us exactly why socket() failed
                        socket_ = handle;
-                       isRunning_.store(true); // Mark the socket as running after successful initialization
                        return {};
 
             });

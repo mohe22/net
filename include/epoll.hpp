@@ -243,6 +243,14 @@ public:
         paused_.store(false);
         paused_.notify_all();
     }
+    void stop() noexcept {
+        stopped_.store(false);
+        resume();
+    }
+
+    bool isStopped() const noexcept{
+        return stopped_.load();
+    }
 
     bool isPaused() const noexcept {
         return paused_.load();
@@ -268,6 +276,7 @@ private:
     int timeout_{-1};
 
     std::atomic<bool> paused_{true};
+    std::atomic<bool> stopped_{false};
 
 
     /// Internal storage is always void*-based — T is erased at this boundary.

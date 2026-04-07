@@ -47,11 +47,12 @@ void Watcher::closeImpl(Descriptor* desc) noexcept {
 Result<void> Watcher::watch() noexcept {
     for (;;) {
 
+
+        if (stopped_.load()) return {};
+
         // check if paused and wait for resume
-        if (paused_.load())
-            paused_.wait(true);
-
-
+         if (paused_.load())
+             paused_.wait(true);
 
         int nfds = epoll_wait(efd_, events_, MAX_EVENTS, timeout_);
 
@@ -112,6 +113,7 @@ Watcher::Watcher(Watcher&& other) noexcept
     , efd_{other.efd_}
     , timeout_{other.timeout_}
     , paused_{other.paused_.load()}
+    , stopped_{other.stopped_.load()}
 {
     std::copy_n(other.events_, MAX_EVENTS, events_);
     other.efd_ = -1;
@@ -124,6 +126,7 @@ Watcher& Watcher::operator=(Watcher&& other) noexcept {
         efd_     = other.efd_;
         timeout_ = other.timeout_;
         paused_.store(other.paused_.load());
+                stopped_.store(other.stopped_.load());
         std::copy_n(other.events_, MAX_EVENTS, events_);
         other.efd_ = -1;
     }
