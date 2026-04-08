@@ -120,8 +120,7 @@ Constructed only through static factory methods, all of which return `Result<Add
 
 `getIp()` returns a `string_view` into the internal `ip_` member — no computation on each call,
 valid for the lifetime of the `Address` object. `getPort()`, `getIpType()` also return
-`Result<T>`. Raw accessors `getAddrRaw()` and `getSizeRaw()` expose the underlying storage for
-OS calls like `bind()`, `connect()`, etc.
+`Result<T>`.
 
 ---
 
