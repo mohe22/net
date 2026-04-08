@@ -114,7 +114,7 @@ void testIpv4(){
 
 int main(){
 
-    testIpv6();
+    testIpv4();
     return 0;
 
 };

@@ -1,4 +1,6 @@
 #include "../include/server.hpp"
+#include <netinet/in.h>
+#include <print>
 
 
 
@@ -112,41 +114,42 @@ namespace Net::Servers {
     }
 
     Result<Net::RecvFromResult> Udp::receiveFrom(uint8_t* buffer, size_t length) noexcept {
-        if(!isValidSocket())
+        if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
 
-        Result<IPType> result = getIpType();
-        if(!result)
-            return std::unexpected{result.error()};
-
-        Address receiver(result.value());
+        sockaddr_storage senderStorage{};
+        socklen_t senderLen = sizeof(senderStorage);
 
         #ifdef _WIN32
-            ssize recvBytes =::recvfrom(
-                getSocket(),
-                (char*)buffer,
-                length,
-                0,
-                receiver.getAddrRaw(),
-                receiver.getSizeRaw()
-            );
+        ssize recvBytes = ::recvfrom(
+            getSocket(),
+            reinterpret_cast<char*>(buffer),
+            length,
+            0,
+            reinterpret_cast<sockaddr*>(&senderStorage),
+            &senderLen
+        );
         #else
-            ssize recvBytes = ::recvfrom(
-                getSocket(),
-                buffer,
-                length,
-                0,
-                receiver.getAddrRaw(),
-                receiver.getSizeRaw()
-            );
+        ssize recvBytes = ::recvfrom(
+            getSocket(),
+            buffer,
+            length,
+            0,
+            reinterpret_cast<sockaddr*>(&senderStorage),
+            &senderLen
+        );
         #endif
-        if(recvBytes == 0 ) return std::unexpected{Net::Error::ConnectionClosed};
+
+        if (recvBytes == 0)
+            return std::unexpected{Net::Error::ConnectionClosed};
         if (recvBytes == -1)
             return std::unexpected{getError()};
 
-        return std::make_tuple(recvBytes, receiver);
+        auto senderAddrResult = Net::Address::from(senderStorage);
+        if (!senderAddrResult)
+            return std::unexpected{senderAddrResult.error()};
+
+        return std::make_tuple(recvBytes, senderAddrResult.value());
     }
-
-
 
 };
