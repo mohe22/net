@@ -16,6 +16,7 @@ namespace Net {
     Connection::Connection(SocketHandle socket, const Address &address) noexcept
         : socket_{socket}, address_{address}
     {
+        fd = socket_;
     }
 
     Result<std::unique_ptr<Connection>> Connection::connect(const std::string &ip,uint16_t port,IPType ipType) noexcept {

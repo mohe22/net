@@ -125,6 +125,7 @@ Watcher::Watcher(Watcher&& other) noexcept
     , timeout_{other.timeout_}
     , paused_{other.paused_.load()}
     , stopped_{other.stopped_.load()}
+
 {
     std::copy_n(other.events_, MAX_EVENTS, events_);
     other.efd_ = -1;
