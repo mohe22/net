@@ -6,12 +6,15 @@ namespace Net::Poll {
 
 
 Watcher::Watcher(int fd, int timeout) noexcept
-    : ev_{}, events_{}, efd_{fd}, timeout_{timeout} {}
+    : ev_{}, events_{}, efd_{fd}, timeout_{timeout} {
+          resume();
+    }
 
 Result<Watcher> Watcher::create(int timeout) noexcept {
     int efd = epoll_create1(0);
     if (efd == -1)
         return std::unexpected{getError()};
+
     return Watcher{efd, timeout};
 }
 
@@ -23,6 +26,7 @@ Result<void> Watcher::addImpl(Descriptor* desc, Net::EpollEvent events) noexcept
     ev.data.ptr = desc;  // store the Descriptor* directly fd lives inside it
     if (epoll_ctl(efd_, static_cast<int>(Net::EpollOptions::Add), desc->fd, &ev) == -1)
         return std::unexpected{getError()};
+
     return {};
 }
 

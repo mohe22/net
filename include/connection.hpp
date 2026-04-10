@@ -1,4 +1,5 @@
 #pragma once
+#include "epoll.hpp"
 #include "platform.hpp"
 #include "types.hpp"
 #include "address.hpp"
@@ -21,7 +22,7 @@ namespace Net {
  * @note All operations are blocking. @c send() and @c receive() will block
  *       until data is written/read or an error occurs.
  */
-class Connection: public SocketOptions {
+class Connection: public SocketOptions , public Net::Poll::Descriptor {
 
     public:
         /**

@@ -262,9 +262,9 @@ public:
     void close() noexcept;
 
     ~Watcher();
-    Watcher(const Watcher&)            = delete;
-    Watcher(int fd, int timeout) noexcept;
+    Watcher() =delete;
 
+    Watcher(const Watcher&)            = delete;
     Watcher& operator=(const Watcher&) = delete;
     Watcher(Watcher&&)    noexcept;
     Watcher& operator=(Watcher&&) noexcept;
@@ -283,6 +283,7 @@ private:
     std::atomic<bool> paused_{true};
     std::atomic<bool> stopped_{false};
 
+    Watcher(int fd, int timeout) noexcept;
 
     /// Internal storage is always void*-based — T is erased at this boundary.
     /// The templated setters above wrap the user's typed callback in a lambda
