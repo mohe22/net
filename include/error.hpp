@@ -5,147 +5,78 @@
 
 namespace Net {
 
-/**
- * @brief Enumeration of all possible error codes produced by the Net library.
- *
- * Used as the error type inside @c Result<T> (i.e. @c std::unexpected<Error>).
- * Errors are grouped by the operation that produces them. The underlying type
- * is @c uint8_t to keep the size minimal when stored in @c std::expected.
- *
- * @note @c Error::Ok (value @c 0) is the success state and is never placed
- *       inside @c std::unexpected — it exists for completeness and for use
- *       with @c toErrorString().
- */
-enum class Error : uint8_t  {
+enum class Error : uint8_t {
 
-    // -------------------------------------------------------------------------
-    // General
-    // -------------------------------------------------------------------------
+    // ── General ───────────────────────────────────────────────────────────────
+    Ok                      = 0,
+    UnknownError            = 1,
 
-    Ok                   = 0,  ///< No error — operation succeeded.
-    UnknownError         = 1,  ///< An unrecognized platform error code was returned.
+    // ── Initialization ────────────────────────────────────────────────────────
+    WSAStartupFailed        = 2,   ///< Windows only — WSAStartup() failed.
+    SocketCreationFailed    = 3,   ///< socket() returned an invalid handle.
 
-    // -------------------------------------------------------------------------
-    // Initialization
-    // -------------------------------------------------------------------------
+    // ── Address / IP ──────────────────────────────────────────────────────────
+    InvalidIP               = 4,   ///< IP string could not be parsed by inet_pton().
+    InvalidPort             = 5,   ///< Port was 0 or out of valid range.
+    InvalidAddressFamily    = 6,   ///< Unrecognized ss_family / sin_family value.
+    InvalidSocketType       = 7,   ///< Unknown or unsupported SOCK_* type.
+    InvalidProtocol         = 8,   ///< Protocol incompatible with the requested operation.
+    InvalidArgument         = 9,   ///< A caller-supplied argument is invalid (e.g. size == 0).
 
-    WSAStartupFailed     = 2,  ///< Windows only — @c WSAStartup() failed to initialize Winsock.
-    SocketCreationFailed = 3,  ///< @c socket() returned an invalid handle.
-    InvalidSocket        = 37, ///< The socket handle is invalid.
+    // ── Bind ──────────────────────────────────────────────────────────────────
+    BindFailed              = 10,  ///< bind() failed for a reason not covered below.
+    AddressAlreadyInUse     = 11,  ///< Port already occupied (EADDRINUSE).
+    AddressNotAvailable     = 12,  ///< Requested IP not assigned to any local interface.
 
-    // -------------------------------------------------------------------------
-    // Address / IP
-    // -------------------------------------------------------------------------
+    // ── Listen ────────────────────────────────────────────────────────────────
+    ListenFailed            = 13,  ///< listen() failed.
+    NotBound                = 14,  ///< listen() called before bind().
 
-    InvalidIP            = 4,  ///< The IP string could not be parsed by @c inet_pton().
-    InvalidPort          = 5,  ///< Port was @c 0 or out of the valid range.
-    InvalidAddressFamily = 6,  ///< @c ss_family / @c sin_family held an unrecognized value.
-    InvalidSocketType    = 7,  ///< Unknown or unsupported @c SOCK_* type.
-    InvalidProtocol      = 39, ///< Protocol is incompatible with the requested operation.
+    // ── Accept ────────────────────────────────────────────────────────────────
+    AcceptFailed            = 15,  ///< accept() failed.
+    NotListening            = 16,  ///< accept() called before listen().
 
-    // -------------------------------------------------------------------------
-    // Bind
-    // -------------------------------------------------------------------------
+    // ── Connect ───────────────────────────────────────────────────────────────
+    ConnectFailed           = 17,  ///< connect() failed for a reason not covered below.
+    ConnectionRefused       = 18,  ///< Remote host actively refused the connection.
+    ConnectionTimeout       = 19,  ///< Connection attempt timed out.
+    AlreadyConnected        = 20,  ///< connect() called on an already-connected socket.
 
-    BindFailed           = 8,  ///< @c bind() failed for a reason not covered below.
-    AddressAlreadyInUse  = 9,  ///< The port is already occupied (@c EADDRINUSE / @c WSAEADDRINUSE).
-    AddressNotAvailable  = 10, ///< The requested IP is not assigned to any local interface.
+    // ── Send ──────────────────────────────────────────────────────────────────
+    SendFailed              = 21,  ///< send() failed for a reason not covered below.
+    ConnectionReset         = 22,  ///< Remote peer forcibly closed the connection.
+    BrokenPipe              = 23,  ///< POSIX: write to a socket whose read end is closed.
+    MessageTooLarge         = 24,  ///< Datagram exceeds max UDP payload (EMSGSIZE).
 
-    // -------------------------------------------------------------------------
-    // Listen
-    // -------------------------------------------------------------------------
+    // ── Receive ───────────────────────────────────────────────────────────────
+    ReceiveFailed           = 25,  ///< recv() failed for a reason not covered below.
+    ConnectionClosed        = 26,  ///< Remote peer closed the connection gracefully.
+    BufferTooSmall          = 27,  ///< Buffer too small to hold the requested data.
 
-    ListenFailed         = 11, ///< @c listen() failed.
-    NotBound             = 12, ///< @c listen() was called before @c bind().
+    // ── Close ─────────────────────────────────────────────────────────────────
+    CloseFailed             = 28,  ///< close() / closesocket() failed.
 
-    // -------------------------------------------------------------------------
-    // Accept
-    // -------------------------------------------------------------------------
+    // ── Socket State ──────────────────────────────────────────────────────────
+    InvalidSocket           = 29,  ///< The socket handle is invalid.
+    SocketNotInitialized    = 30,  ///< Operation attempted before socket was initialized.
+    SocketAlreadyClosed     = 31,  ///< Operation attempted after socket was closed.
+    WouldBlock              = 32,  ///< Non-blocking socket has no data ready (EAGAIN).
+    SocketOptionFailed      = 33,  ///< Setting a socket option failed.
 
-    AcceptFailed         = 13, ///< @c accept() failed.
-    NotListening         = 14, ///< @c accept() was called before @c listen().
+    // ── Raw Socket ────────────────────────────────────────────────────────────
+    RawSocketNotPermitted   = 34,  ///< Raw socket requires root / Administrator privileges.
 
-    // -------------------------------------------------------------------------
-    // Connect
-    // -------------------------------------------------------------------------
-
-    ConnectFailed        = 15, ///< @c connect() failed for a reason not covered below.
-    ConnectionRefused    = 16, ///< The remote host actively refused the connection.
-    ConnectionTimeout    = 17, ///< The connection attempt timed out before completing.
-    AlreadyConnected     = 18, ///< @c connect() was called on an already-connected socket.
-
-    // -------------------------------------------------------------------------
-    // Send
-    // -------------------------------------------------------------------------
-
-    SendFailed           = 19, ///< @c send() failed for a reason not covered below.
-    ConnectionReset      = 20, ///< The remote peer forcibly closed the connection mid-transfer.
-    BrokenPipe           = 21, ///< POSIX only — attempt to write to a socket whose read end is closed.
-
-    // -------------------------------------------------------------------------
-    // Receive
-    // -------------------------------------------------------------------------
-
-    ReceiveFailed        = 22, ///< @c recv() failed for a reason not covered below.
-    ConnectionClosed     = 23, ///< The remote peer closed the connection gracefully (@c recv() returned @c 0).
-    BufferTooSmall       = 24, ///< The buffer provided is too small to hold the requested data.
-
-    // -------------------------------------------------------------------------
-    // Close
-    // -------------------------------------------------------------------------
-
-    CloseFailed          = 25, ///< @c close() / @c closesocket() failed.
-
-    // -------------------------------------------------------------------------
-    // Socket State
-    // -------------------------------------------------------------------------
-
-    SocketNotInitialized = 26, ///< An operation was attempted before the socket was initialized.
-    SocketAlreadyClosed  = 27, ///< An operation was attempted after the socket was closed.
-    WouldBlock           = 28, ///< Non-blocking socket has no data ready yet (@c EAGAIN / @c WSAEWOULDBLOCK).
-
-    SocketOptionFailed   = 29, ///< Setting a socket option failed.
-
-    // -------------------------------------------------------------------------
-    // Raw Socket
-    // -------------------------------------------------------------------------
-
-    RawSocketNotPermitted = 30, ///< Creating a raw socket requires root or Administrator privileges.
-
-    // -------------------------------------------------------------------------
-    // Epoll
-    // -------------------------------------------------------------------------
-
-    EpollCreationFailed     = 31, ///< Creating an epoll instance failed.
-    EpollInvalidFlags       = 32, ///< Invalid flags were passed to epoll.
-    EpollLimitReached       = 33, ///< The maximum number of file descriptors for epoll has been reached.
-    EpollEventFailed        = 34, ///< Adding, modifying, or removing an epoll event failed.
-    EpollInsufficientMemory = 35, ///< Insufficient memory to allocate an epoll event.
-    EpollInvalidDescriptor  = 36, ///< The file descriptor passed to epoll is invalid.
+    // ── Epoll ─────────────────────────────────────────────────────────────────
+    EpollCreationFailed     = 35,  ///< Creating an epoll instance failed.
+    EpollInvalidFlags       = 36,  ///< Invalid flags passed to epoll.
+    EpollLimitReached       = 37,  ///< Max file descriptors for epoll reached.
+    EpollEventFailed        = 38,  ///< Adding, modifying, or removing an epoll event failed.
+    EpollInsufficientMemory = 39,  ///< Insufficient memory for an epoll event.
+    EpollInvalidDescriptor  = 40,  ///< File descriptor passed to epoll is invalid.
 };
 
-/**
- * @brief Retrieves the current platform error and maps it to a @c Net::Error.
- *
- * Calls @c getLastError() (which wraps @c errno on POSIX and
- * @c WSAGetLastError() on Windows) and maps the resulting integer code to the
- * closest @c Net::Error value. Also prints the raw integer code to stdout as a
- * debug trace.
- *
- * Platform mapping is compile-time selected:
- * - On Windows, Winsock @c WSAE* codes are mapped.
- * - On POSIX, standard @c E* codes are mapped.
- *
- * Any code that has no explicit mapping returns @c Error::UnknownError.
- *
- * @return The @c Net::Error value corresponding to the most recent platform
- *         socket error. Never returns @c Error::Ok.
- *
- * @throws Nothing — marked @c noexcept.
- */
 inline Error getError() noexcept {
     const int code = getLastError();
-
 #ifdef _WIN32
     switch (code) {
         case WSAEADDRINUSE:      return Error::AddressAlreadyInUse;
@@ -159,7 +90,7 @@ inline Error getError() noexcept {
         case WSAENOTCONN:        return Error::ConnectionClosed;
         case WSAECONNRESET:      return Error::ConnectionReset;
         case WSAESHUTDOWN:       return Error::ConnectionClosed;
-        case WSAEMSGSIZE:        return Error::SendFailed;
+        case WSAEMSGSIZE:        return Error::MessageTooLarge;
         case WSAENOBUFS:         return Error::SendFailed;
         case WSAEWOULDBLOCK:     return Error::WouldBlock;
         case WSAEINPROGRESS:     return Error::WouldBlock;
@@ -170,7 +101,7 @@ inline Error getError() noexcept {
         case WSAEACCES:          return Error::RawSocketNotPermitted;
         case WSAENETDOWN:
         case WSAENETUNREACH:
-        case WSAEHOSTUNREACH:    return Error::ConnectionClosed;
+        case WSAEHOSTUNREACH:    return Error::ConnectFailed;
         default:                 return Error::UnknownError;
     }
 #else
@@ -186,7 +117,7 @@ inline Error getError() noexcept {
         case ENOTCONN:           return Error::ConnectionClosed;
         case ECONNRESET:         return Error::ConnectionReset;
         case EPIPE:              return Error::BrokenPipe;
-        case EMSGSIZE:           return Error::SendFailed;
+        case EMSGSIZE:           return Error::MessageTooLarge;
         case ENOBUFS:            return Error::SendFailed;
         case EWOULDBLOCK:        return Error::WouldBlock;
         case EINPROGRESS:        return Error::WouldBlock;
@@ -211,42 +142,20 @@ inline Error getError() noexcept {
 #endif
 }
 
-/**
- * @brief Returns a human-readable description of a @c Net::Error value.
- *
- * Covers every enumerator in @c Error. If an unrecognized value is somehow
- * passed (e.g. via a cast), the fallback return is @c "Unrecognized error".
- *
- * The returned @c std::string_view points into static storage — it is always
- * valid and never null.
- *
- * Typical usage:
- * @code
- * auto result = address.getIp();
- * if (!result)
- *     std::println("Error: {}", Net::toErrorString(result.error()));
- * @endcode
- *
- * @param error  Any @c Net::Error enumerator, including @c Error::Ok.
- *
- * @return A non-owning @c std::string_view into a string literal describing
- *         @p error. The view is valid for the lifetime of the program.
- *
- * @throws Nothing — marked @c noexcept.
- */
 inline std::string_view toErrorString(Error error) noexcept {
     switch (error) {
         case Error::Ok:                      return "Ok";
         case Error::UnknownError:            return "Unknown error";
         case Error::WSAStartupFailed:        return "Windows Winsock initialization failed";
-        case Error::InvalidSocket:           return "Invalid socket handle";
         case Error::SocketCreationFailed:    return "Failed to create socket";
+        case Error::InvalidSocket:           return "Invalid socket handle";
         case Error::SocketOptionFailed:      return "Setting a socket option failed";
         case Error::InvalidIP:               return "Invalid IP address format";
         case Error::InvalidPort:             return "Port out of range (0 or >65535)";
         case Error::InvalidAddressFamily:    return "Unknown IP type or incompatible address family";
         case Error::InvalidSocketType:       return "Unknown protocol type";
         case Error::InvalidProtocol:         return "Invalid protocol for this operation";
+        case Error::InvalidArgument:         return "Invalid argument supplied by caller";
         case Error::BindFailed:              return "Failed to bind socket";
         case Error::AddressAlreadyInUse:     return "Address already in use (port occupied)";
         case Error::AddressNotAvailable:     return "Address not available on this machine";
@@ -260,6 +169,7 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::ConnectionTimeout:       return "Connection timed out";
         case Error::AlreadyConnected:        return "Socket is already connected";
         case Error::SendFailed:              return "Failed to send data";
+        case Error::MessageTooLarge:         return "Datagram too large (max UDP payload is 65507 bytes)";
         case Error::ConnectionReset:         return "Connection forcibly closed by remote";
         case Error::BrokenPipe:              return "Cannot write to a closed socket";
         case Error::ReceiveFailed:           return "Failed to receive data";
@@ -267,15 +177,15 @@ inline std::string_view toErrorString(Error error) noexcept {
         case Error::CloseFailed:             return "Failed to close socket";
         case Error::SocketNotInitialized:    return "Socket not initialized, call init() first";
         case Error::SocketAlreadyClosed:     return "Socket is already closed";
-        case Error::WouldBlock:              return "Non-blocking socket has no data yet";
+        case Error::WouldBlock:              return "Non-blocking socket has no data yet (EAGAIN)";
         case Error::RawSocketNotPermitted:   return "Raw socket requires root/admin privileges";
         case Error::EpollCreationFailed:     return "Failed to create epoll instance";
         case Error::EpollInvalidFlags:       return "Invalid flags passed to epoll";
         case Error::EpollLimitReached:       return "Epoll file descriptor limit reached";
         case Error::EpollEventFailed:        return "Failed to add, modify, or remove epoll event";
         case Error::EpollInsufficientMemory: return "Insufficient memory for epoll event";
-        case Error::EpollInvalidDescriptor:
-            return "Invalid file descriptor passed to epoll. Ensure your object inherits from Net::Poll::Descriptor before using it.";    }
+        case Error::EpollInvalidDescriptor:  return "Invalid file descriptor passed to epoll — object must inherit from Net::Poll::Descriptor";
+    }
     return "Unrecognized error";
 }
 

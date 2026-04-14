@@ -1,6 +1,5 @@
 #include "../include/server.hpp"
 #include <netinet/in.h>
-#include <print>
 
 
 
@@ -84,36 +83,31 @@ namespace Net::Servers {
         closeSocket();
     }
 
-    Result<ssize> Udp::sendTo(const void* data, size_t size, const Net::Address& destination) noexcept {
+    Result<ssize> Udp::sendTo(const void* data, size_t size, const Net::Address& destination)  noexcept {
         if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
 
+        if (size > 65507)  return std::unexpected{Error::MessageTooLarge};
         #ifdef _WIN32
-        ssize sentBytes = ::sendto(
-                    getSocket(),
-                    (char*)data,
-                    size,
-                    0,
-                    destination.getAddrRaw(),
-                    destination.getSize()
-            );
+            ssize sentBytes = ::sendto(getSocket(), (char*)data, size, 0,
+                                       destination.getAddrRaw(), destination.getSize());
         #else
-            ssize sentBytes = ::sendto(
-                getSocket(),
-                data,
-                size,
-                0,
-                destination.getAddrRaw(),
-                destination.getSize()
-            );
+            ssize sentBytes = ::sendto(getSocket(), data, size, 0,
+                                       destination.getAddrRaw(), destination.getSize());
         #endif
-        if(sentBytes == 0 ) return std::unexpected{Net::Error::ConnectionClosed};
-        if (sentBytes == -1)
-            return std::unexpected{getError()};
+
+        if (sentBytes == -1) {
+            const auto err = getError();
+            if (err == Net::Error::WouldBlock)
+                return std::unexpected{
+                    isBlocking() ? Net::Error::ConnectionTimeout : Net::Error::WouldBlock};
+            return std::unexpected{err};
+        }
+
         return sentBytes;
     }
 
-    Result<Net::RecvFromResult> Udp::receiveFrom(uint8_t* buffer, size_t length) noexcept {
+    Result<Net::RecvFromResult> Udp::receiveFrom(uint8_t* buffer, size_t length)  noexcept {
         if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
 
@@ -121,29 +115,20 @@ namespace Net::Servers {
         socklen_t senderLen = sizeof(senderStorage);
 
         #ifdef _WIN32
-        ssize recvBytes = ::recvfrom(
-            getSocket(),
-            reinterpret_cast<char*>(buffer),
-            length,
-            0,
-            reinterpret_cast<sockaddr*>(&senderStorage),
-            &senderLen
-        );
+            ssize recvBytes = ::recvfrom(getSocket(), reinterpret_cast<char*>(buffer), length, 0,
+                                         reinterpret_cast<sockaddr*>(&senderStorage), &senderLen);
         #else
-        ssize recvBytes = ::recvfrom(
-            getSocket(),
-            buffer,
-            length,
-            0,
-            reinterpret_cast<sockaddr*>(&senderStorage),
-            &senderLen
-        );
+            ssize recvBytes = ::recvfrom(getSocket(), buffer, length, 0,
+                                         reinterpret_cast<sockaddr*>(&senderStorage), &senderLen);
         #endif
 
-        if (recvBytes == 0)
-            return std::unexpected{Net::Error::ConnectionClosed};
-        if (recvBytes == -1)
-            return std::unexpected{getError()};
+        if (recvBytes == -1) {
+            const auto err = getError();
+            if (err == Net::Error::WouldBlock)
+                return std::unexpected{
+                    isBlocking() ? Net::Error::ConnectionTimeout : Net::Error::WouldBlock};
+            return std::unexpected{err};
+        }
 
         auto senderAddrResult = Net::Address::from(senderStorage);
         if (!senderAddrResult)
@@ -151,5 +136,4 @@ namespace Net::Servers {
 
         return std::make_tuple(recvBytes, senderAddrResult.value());
     }
-
 };
