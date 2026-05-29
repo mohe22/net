@@ -244,7 +244,7 @@ public:
         paused_.notify_all();
     }
     void stop() noexcept {
-        stopped_.store(false);
+        stopped_.store(true);
         resume();
     }
 

@@ -261,11 +261,15 @@ class Connection: public SocketOptions , public Net::Poll::Descriptor {
             @throws Nothing — marked @c noexcept.
         */
         std::tuple<std::string_view, uint16_t> getRemoteIpPort() const noexcept
-        {
-            return {address_.getIp().value_or("UnknownIP"),
-                    address_.getPort().value_or(0)};
-        }
+            {
+                auto ipRes = address_.getIp();
+                auto portRes = address_.getPort();
+                if (!ipRes || !portRes) {
+                    return {"", 0};
+                }
 
+                return {ipRes.value(), portRes.value()};
+            }
         SocketHandle getSocket() const noexcept override { return socket_; }
 private:
 

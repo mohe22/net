@@ -7,13 +7,11 @@
 int main() {
     Net::Servers::Tcp server;
 
-    // ── Controller thread — pause / resume / stop ──────────────────────
     std::thread controller([&]() {
-        // ── Test pause ────────────────────────────────────────────────
         std::this_thread::sleep_for(std::chrono::seconds(10));
         std::println("pausing server...");
         server.pause();
-        std::println("isPaused: {}", server.isPaused()); // → true
+        std::println("isPaused: {}", server.isPaused());
 
         std::this_thread::sleep_for(std::chrono::seconds(10));
         std::println("resuming server...");
@@ -23,7 +21,7 @@ int main() {
         std::this_thread::sleep_for(std::chrono::seconds(10));
         std::println("stopping server...");
         server.stop();
-        std::println("isStopped: {}", server.isStopped()); // → true
+        std::println("isStopped: {}", server.isStopped());
     });
     controller.detach();
 
@@ -49,9 +47,7 @@ int main() {
             while (true) {
                 if (server.isPaused()) {
                     std::println("server paused — waiting for resume...");
-                    // spin until resumed or stopped
-                    while (server.isPaused() && !server.isStopped())
-                        std::this_thread::yield();
+                    server.waitUntilRunning();
                     std::println("server resumed");
                 }
 
@@ -59,9 +55,10 @@ int main() {
                     std::println("server stopped — exiting accept loop");
                     break;
                 }
-
+                std::println("waiting for client...");
                 Net::Result<std::unique_ptr<Net::Connection>> client = server.accept();
                 if (!client) {
+                    if (server.isStopped()) break;
                     std::println("[accept] error: {}", Net::toErrorString(client.error()));
                     continue;
                 }

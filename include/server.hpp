@@ -87,10 +87,7 @@ namespace Net {
              * flag is unblocked.
              */
             void closeSocket() noexcept {
-                if (isValidSocket())
-                    platformClose(socket_);
-                socket_ = invalidSocket;
-                stop(); // socket is gone — signal permanent stop
+                stop();
             }
 
 
@@ -133,8 +130,23 @@ namespace Net {
              */
             void stop() noexcept {
                 stopped_.store(true);
-                paused_.store(false);  // unblock anything waiting on paused_
+                paused_.store(false);
                 paused_.notify_all();
+                if (socket_ != invalidSocket) {
+                    platformClose(socket_);
+                    socket_ = invalidSocket;
+                }
+            }
+
+            /**
+             * @brief Blocks until resume() or stop() is called.
+             *
+             * If paused, the calling thread blocks without spinning.
+             * Returns immediately if not paused or if stopped.
+             */
+            void waitUntilRunning() const noexcept {
+                while (paused_.load() && !stopped_.load())
+                    paused_.wait(true);
             }
 
             /**
