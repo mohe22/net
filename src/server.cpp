@@ -83,7 +83,7 @@ namespace Net::Servers {
         closeSocket();
     }
 
-    Result<ssize> Udp::sendTo(const void* data, size_t size, const Net::Address& destination)  noexcept {
+    Result<ssize> Udp::sendTo(const void* data, size_t size, const Net::Address& destination) const  noexcept {
         if (!isValidSocket())
             return std::unexpected{Error::SocketNotInitialized};
 

@@ -200,7 +200,7 @@ namespace Net {
             /**
              * @brief Sends a datagram to a specific remote address.
              */
-            Result<ssize> sendTo(const void* data, size_t size, const Net::Address& destination) noexcept;
+            Result<ssize> sendTo(const void* data, size_t size, const Net::Address& destination) const noexcept;
 
             int socketType() const noexcept override { return SOCK_DGRAM; }
         };
