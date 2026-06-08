@@ -25,6 +25,7 @@ namespace Net {
  */
 class SocketOptions {
 public:
+ virtual ~SocketOptions() = default;
 
 /**
     * @brief Sets or clears non-blocking mode on the socket.
@@ -45,7 +46,8 @@ public:
     *
     * @throws Nothing — marked @c noexcept.
     */
-Result<void> setNonBlocking(bool nonBlocking = true)  noexcept;    /**
+Result<void> setNonBlocking(bool nonBlocking = true)  noexcept;
+/**
     * @brief Sets the receive timeout for the socket.
     *
     * After this timeout elapses with no data received, @c recv() / @c recvfrom()

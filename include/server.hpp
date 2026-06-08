@@ -55,7 +55,7 @@ namespace Net {
 
             SocketBase() noexcept = default;
 
-            ~SocketBase() noexcept {
+            virtual ~SocketBase() noexcept {
                 closeSocket();
                 #ifdef _WIN32
                 if (wsaInitialized_)

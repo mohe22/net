@@ -120,14 +120,15 @@ namespace Net {
             return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
         }
 
-        ssize offset = 0;
+        size_t offset = 0;
         while(offset < totalBytes){
             auto result = send(
                 buffer.subspan(offset).data(),
                 totalBytes - offset
             );
             if(!result) return std::unexpected{result.error()};
-            offset += result.value();
+
+            offset += static_cast<size_t>(result.value());
         }
         return {};
     }
@@ -157,14 +158,15 @@ namespace Net {
             return std::unexpected<Net::Error>{Net::Error::BufferTooSmall};
         }
 
-        ssize offset = 0;
+        size_t offset = 0;
         while(offset < totalBytes){
             auto result = receive(
                 data.subspan(offset).data(),
                 totalBytes - offset
             );
             if(!result) return std::unexpected{result.error()};
-            offset += result.value();
+
+            offset += static_cast<size_t>(result.value());
         }
         return {};
     }
